@@ -189,6 +189,22 @@ type compileContext struct {
 
 ---
 
+## IRはユーザーに隠蔽される
+
+ユーザーが操作するのは Component（Formula / Flow / Map / Zip 等）のみ。
+IRは Diag を返すための内部中間表現であり、lower処理によって自動生成される。
+FormulaComponent の式中の FuncCall（FILTER, CHOOSECOLS, FIRST 等）が rel の各ノードに展開される。
+
+| lower後のIRノード | 変換元（内部的な対応） |
+|---|---|
+| TableScan | DatabaseTableComponent への参照 |
+| Filter | FILTER() FuncCall |
+| Project | CHOOSECOLS() FuncCall |
+| DeriveColumn | FormulaComponent の式評価結果 |
+| Literal（expr内） | ConstComponent の値（独立ノードなし） |
+
+---
+
 ## 実装順序
 
 1. `expr/` 型定義（Expr interface + Literal, ColumnRef, BinaryOp, FuncCall, DataType）

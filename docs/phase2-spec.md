@@ -351,15 +351,26 @@ Phase 2 の実装がゴミにならないために、以下の境界だけ先に
 
 ## App層とIRの関係
 
-### App Node → IR対応
+IRはユーザーには完全に隠蔽される。ユーザーが操作するのは Component（Formula / Flow / Map / Zip 等）のみ。
 
-| App Node | IR |
+IRは Diag を返すための内部中間表現であり、lower 処理によって自動的に生成される。
+
+### lower処理（内部実装の対応関係）
+
+ユーザーが定義した Component は App層で lower されて IR に変換される。
+この変換はバックエンド内部で行われ、ユーザーは意識しない。
+
+FormulaComponent の式中の FuncCall（FILTER, CHOOSECOLS, FIRST 等）が
+rel の各ノードに展開される。ConstComponent は独立ノードにならず
+DeriveColumn や Filter の Expr 内の Literal として埋め込まれる。
+
+| lower後のIRノード | 変換元（内部的な対応） |
 |---|---|
-| TableComponent | TableScan |
-| FilterComponent | Filter |
-| ProjectComponent | Project |
-| DeriveColumnComponent | DeriveColumn |
-| ConstComponent | Literalとしてexprに埋め込まれる（独立ノードなし） |
+| TableScan | DatabaseTableComponent への参照 |
+| Filter | FILTER() FuncCall |
+| Project | CHOOSECOLS() FuncCall |
+| DeriveColumn | FormulaComponent の式評価結果 |
+| Literal（expr内） | ConstComponent の値 |
 
 ---
 
