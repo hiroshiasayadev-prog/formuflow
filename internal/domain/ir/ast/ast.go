@@ -1,6 +1,6 @@
 package ast
 
-import "github.com/your-module/internal/domain/ir/expr"
+import "github.com/hiroshiasayadev-prog/formuflow/internal/domain/ir/expr"
 
 // NodeType represents the type of an AST node.
 type NodeType string

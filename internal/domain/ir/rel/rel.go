@@ -1,6 +1,6 @@
 package rel
 
-import "github.com/your-module/internal/domain/ir/expr"
+import "github.com/hiroshiasayadev-prog/formuflow/internal/domain/ir/expr"
 
 // RelNode is the interface for all relational IR nodes.
 // Each node represents a table-transforming operation and forms a tree structure
@@ -84,3 +84,69 @@ func (TableScan) relNode()    {}
 func (Filter) relNode()       {}
 func (Project) relNode()      {}
 func (DeriveColumn) relNode() {}
+
+
+// JoinKind enumerates the supported join types.
+type JoinKind string
+
+const (
+    JoinCross JoinKind = "CROSS"
+    JoinInner JoinKind = "INNER"
+    JoinLeft  JoinKind = "LEFT"
+)
+
+// Join combines two input relations into one.
+// It is the only RelNode with two inputs (Left and Right).
+//
+// Output schema: all columns from Left followed by all columns from Right.
+// Column name conflicts between Left and Right are treated as a compile error.
+//
+// Rules:
+//   - JoinCross: On must be nil. Output is the cartesian product (Left × Right rows).
+//   - JoinInner / JoinLeft: On must be a non-nil predicate expr.
+type Join struct {
+    DiagAnchor string
+    Kind       JoinKind
+    Left       RelNode
+    Right      RelNode
+    On         expr.Expr // nil for CROSS; required for INNER / LEFT
+}
+
+func (Join) relNode() {}
+
+// AggFunc enumerates the supported aggregate functions.
+type AggFunc string
+
+const (
+    AggSum   AggFunc = "SUM"
+    AggCount AggFunc = "COUNT"
+    AggAvg   AggFunc = "AVG"
+    AggMin   AggFunc = "MIN"
+    AggMax   AggFunc = "MAX"
+)
+
+// AggExpr describes a single aggregation: Func(Col) AS Alias.
+type AggExpr struct {
+    Func  AggFunc
+    Col   string // column name to aggregate
+    Alias string // output column name
+}
+
+// Aggregate groups rows by GroupBy columns and applies aggregate functions.
+// Corresponds to SQL GROUP BY + aggregate functions.
+//
+// Output schema: GroupBy columns followed by Aggs alias columns.
+// If GroupBy is empty, the entire input is collapsed into a single row.
+//
+// Rules:
+//   - Aggs must not be empty.
+//   - Each Col in Aggs must exist in the input schema.
+//   - Each column in GroupBy must exist in the input schema.
+type Aggregate struct {
+    DiagAnchor string
+    Input      RelNode
+    GroupBy    []string
+    Aggs       []AggExpr
+}
+
+func (Aggregate) relNode() {}

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/your-module/internal/domain/ir/expr"
-	"github.com/your-module/internal/domain/ir/rel"
+	"github.com/hiroshiasayadev-prog/formuflow/internal/domain/ir/expr"
+	"github.com/hiroshiasayadev-prog/formuflow/internal/domain/ir/rel"
 )
 
 // CompileResult holds the output of a successful compilation.
@@ -107,6 +107,10 @@ func compileRel(ctx *compileContext, node rel.RelNode) (compiledRel, error) {
 		return compileDeriveColumn(ctx, n)
 	case rel.Project:
 		return compileProject(ctx, n)
+	case rel.Join:
+		return compileJoin(ctx, n)
+	case rel.Aggregate:
+		return compileAggregate(ctx, n)
 	default:
 		return compiledRel{}, fmt.Errorf("unsupported RelNode type: %T", node)
 	}
@@ -216,6 +220,165 @@ func compileProject(ctx *compileContext, node rel.Project) (compiledRel, error) 
 				break
 			}
 		}
+	}
+
+	return compiledRel{
+		CTEName:    cteName,
+		SQL:        sql,
+		Schema:     outputSchema,
+		DiagAnchor: node.DiagAnchor,
+	}, nil
+}
+
+// compileJoin compiles a Join node.
+//
+// CROSS generates:
+//
+//	cN AS (SELECT * FROM <left_cte>, <right_cte>)
+//
+// INNER/LEFT generates:
+//
+//	cN AS (SELECT * FROM <left_cte> INNER JOIN <right_cte> ON <predicate>)
+//
+// Guards:
+//   - Left and Right column names must not overlap.
+//   - On must be nil for CROSS, non-nil for INNER/LEFT.
+func compileJoin(ctx *compileContext, node rel.Join) (compiledRel, error) {
+	left, err := compileRel(ctx, node.Left)
+	if err != nil {
+		return compiledRel{}, err
+	}
+	right, err := compileRel(ctx, node.Right)
+	if err != nil {
+		return compiledRel{}, err
+	}
+
+	// Guard: column name conflicts between Left and Right.
+	for _, lc := range left.Schema {
+		for _, rc := range right.Schema {
+			if lc.Name == rc.Name {
+				msg := fmt.Sprintf("column %q exists in both left and right inputs", lc.Name)
+				ctx.addDiag(node.DiagAnchor, msg, "error")
+				return compiledRel{}, fmt.Errorf("Join column conflict (anchor: %s): %s", node.DiagAnchor, msg)
+			}
+		}
+	}
+
+	cteName := ctx.nextCTEName()
+
+	var sql string
+	switch node.Kind {
+	case rel.JoinCross:
+		if node.On != nil {
+			ctx.addDiag(node.DiagAnchor, "CROSS JOIN must not have an ON predicate", "error")
+			return compiledRel{}, fmt.Errorf("Join CROSS with On set (anchor: %s)", node.DiagAnchor)
+		}
+		sql = fmt.Sprintf("%s AS (\n  SELECT * FROM %s, %s\n)", cteName, left.CTEName, right.CTEName)
+	case rel.JoinInner, rel.JoinLeft:
+		if node.On == nil {
+			ctx.addDiag(node.DiagAnchor, "INNER/LEFT JOIN requires an ON predicate", "error")
+			return compiledRel{}, fmt.Errorf("Join %s missing On (anchor: %s)", node.Kind, node.DiagAnchor)
+		}
+		onSQL, err := compileExpr(node.On, append(left.Schema, right.Schema...))
+		if err != nil {
+			ctx.addDiag(node.DiagAnchor, fmt.Sprintf("invalid ON predicate: %v", err), "error")
+			return compiledRel{}, fmt.Errorf("Join ON compilation failed (anchor: %s): %w", node.DiagAnchor, err)
+		}
+		keyword := "INNER JOIN"
+		if node.Kind == rel.JoinLeft {
+			keyword = "LEFT JOIN"
+		}
+		sql = fmt.Sprintf("%s AS (\n  SELECT * FROM %s\n  %s %s ON %s\n)", cteName, left.CTEName, keyword, right.CTEName, onSQL)
+	default:
+		return compiledRel{}, fmt.Errorf("unsupported JoinKind: %q (anchor: %s)", node.Kind, node.DiagAnchor)
+	}
+
+	ctx.ctes = append(ctx.ctes, sql)
+	ctx.diagMap[cteName] = node.DiagAnchor
+
+	outputSchema := append(append(rel.Schema{}, left.Schema...), right.Schema...)
+	return compiledRel{
+		CTEName:    cteName,
+		SQL:        sql,
+		Schema:     outputSchema,
+		DiagAnchor: node.DiagAnchor,
+	}, nil
+}
+
+// compileAggregate compiles an Aggregate node.
+//
+// Generates:
+//
+//	cN AS (SELECT <groupby_cols>, AGG(col) AS alias, ... FROM <input_cte> GROUP BY <groupby_cols>)
+//
+// If GroupBy is empty, GROUP BY clause is omitted (full-table aggregation).
+//
+// Guards:
+//   - Aggs must not be empty.
+//   - Each AggExpr.Col must exist in the input schema.
+//   - Each GroupBy column must exist in the input schema.
+func compileAggregate(ctx *compileContext, node rel.Aggregate) (compiledRel, error) {
+	if len(node.Aggs) == 0 {
+		ctx.addDiag(node.DiagAnchor, "aggregate must have at least one aggregation", "error")
+		return compiledRel{}, fmt.Errorf("Aggregate.Aggs is empty (anchor: %s)", node.DiagAnchor)
+	}
+
+	input, err := compileRel(ctx, node.Input)
+	if err != nil {
+		return compiledRel{}, err
+	}
+
+	// Guard: GroupBy columns must exist in input schema.
+	for _, col := range node.GroupBy {
+		if err := resolveColumn(col, input.Schema); err != nil {
+			msg := fmt.Sprintf("GROUP BY column %q not found in input schema", col)
+			ctx.addDiag(node.DiagAnchor, msg, "error")
+			return compiledRel{}, fmt.Errorf("Aggregate GroupBy resolution failed (anchor: %s): %s", node.DiagAnchor, msg)
+		}
+	}
+
+	// Guard: Agg cols must exist in input schema.
+	for _, agg := range node.Aggs {
+		if err := resolveColumn(agg.Col, input.Schema); err != nil {
+			msg := fmt.Sprintf("aggregate column %q not found in input schema", agg.Col)
+			ctx.addDiag(node.DiagAnchor, msg, "error")
+			return compiledRel{}, fmt.Errorf("Aggregate col resolution failed (anchor: %s): %s", node.DiagAnchor, msg)
+		}
+	}
+
+	// Build SELECT clause: groupby cols + agg exprs.
+	selectCols := make([]string, 0, len(node.GroupBy)+len(node.Aggs))
+	for _, col := range node.GroupBy {
+		selectCols = append(selectCols, col)
+	}
+	for _, agg := range node.Aggs {
+		selectCols = append(selectCols, fmt.Sprintf("%s(%s) AS %s", agg.Func, agg.Col, agg.Alias))
+	}
+
+	cteName := ctx.nextCTEName()
+
+	var sql string
+	if len(node.GroupBy) == 0 {
+		sql = fmt.Sprintf("%s AS (\n  SELECT %s\n  FROM %s\n)", cteName, strings.Join(selectCols, ", "), input.CTEName)
+	} else {
+		sql = fmt.Sprintf("%s AS (\n  SELECT %s\n  FROM %s\n  GROUP BY %s\n)", cteName, strings.Join(selectCols, ", "), input.CTEName, strings.Join(node.GroupBy, ", "))
+	}
+
+	ctx.ctes = append(ctx.ctes, sql)
+	ctx.diagMap[cteName] = node.DiagAnchor
+
+	// Output schema: GroupBy cols + Aggs alias cols.
+	outputSchema := make(rel.Schema, 0, len(node.GroupBy)+len(node.Aggs))
+	for _, col := range node.GroupBy {
+		for _, c := range input.Schema {
+			if c.Name == col {
+				outputSchema = append(outputSchema, c)
+				break
+			}
+		}
+	}
+	for _, agg := range node.Aggs {
+		outputSchema = append(outputSchema, rel.Column{Name: agg.Alias, Type: ""})
 	}
 
 	return compiledRel{
