@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/your-module/internal/domain/ir/ast"
-	"github.com/your-module/internal/domain/ir/expr"
-	"github.com/your-module/internal/domain/ir/rel"
+	"github.com/hiroshiasayadev-prog/formuflow/internal/domain/ir/ast"
+	"github.com/hiroshiasayadev-prog/formuflow/internal/domain/ir/expr"
+	"github.com/hiroshiasayadev-prog/formuflow/internal/domain/ir/rel"
 )
 
 // validOperators is the set of binary operators permitted in Phase 2.
@@ -52,6 +52,14 @@ func (ctx *lowerContext) lowerNode(node *ast.ASTNode) (rel.RelNode, error) {
 			return ctx.lowerWhere(node)
 		case "SELECT":
 			return ctx.lowerSelect(node)
+		case "CROSS_JOIN":
+			return ctx.lowerCrossJoin(node)
+		case "JOIN":
+			return ctx.lowerJoin(node, rel.JoinInner)
+		case "LEFT_JOIN":
+			return ctx.lowerJoin(node, rel.JoinLeft)
+		case "GROUP_BY":
+			return ctx.lowerGroupBy(node)
 		}
 		fallthrough
 	default:
@@ -143,6 +151,170 @@ func (ctx *lowerContext) lowerSelect(node *ast.ASTNode) (rel.RelNode, error) {
 		DiagAnchor: node.ID,
 		Input:      table,
 		Columns:    columns,
+	}, nil
+}
+
+// lowerCrossJoin converts a CROSS_JOIN builtin into a rel.Join{Kind: JoinCross}.
+//
+// Shape requirements:
+//   - exactly 2 children
+//   - both must be NodeTypeTableQuery
+func (ctx *lowerContext) lowerCrossJoin(node *ast.ASTNode) (rel.RelNode, error) {
+	if len(node.Children) != 2 {
+		return nil, fmt.Errorf("lower: CROSS_JOIN requires exactly 2 arguments, got %d (anchor: %s)", len(node.Children), node.ID)
+	}
+	for i, child := range node.Children {
+		if child.Type != ast.NodeTypeTableQuery {
+			return nil, fmt.Errorf("lower: CROSS_JOIN argument %d must be a table query, got %s (anchor: %s)", i, child.Type, node.ID)
+		}
+	}
+
+	left, err := ctx.lowerNode(node.Children[0])
+	if err != nil {
+		return nil, err
+	}
+	right, err := ctx.lowerNode(node.Children[1])
+	if err != nil {
+		return nil, err
+	}
+
+	return rel.Join{
+		DiagAnchor: node.ID,
+		Kind:       rel.JoinCross,
+		Left:       left,
+		Right:      right,
+		On:         nil,
+	}, nil
+}
+
+// lowerJoin converts a JOIN / LEFT_JOIN builtin into a rel.Join.
+//
+// Shape requirements:
+//   - exactly 3 children
+//   - Children[0] and Children[1] must be NodeTypeTableQuery
+//   - Children[2] is the ON predicate expression
+func (ctx *lowerContext) lowerJoin(node *ast.ASTNode, kind rel.JoinKind) (rel.RelNode, error) {
+	if len(node.Children) != 3 {
+		return nil, fmt.Errorf("lower: %s requires exactly 3 arguments, got %d (anchor: %s)", node.Value, len(node.Children), node.ID)
+	}
+	for i := 0; i < 2; i++ {
+		if node.Children[i].Type != ast.NodeTypeTableQuery {
+			return nil, fmt.Errorf("lower: %s argument %d must be a table query, got %s (anchor: %s)", node.Value, i, node.Children[i].Type, node.ID)
+		}
+	}
+
+	left, err := ctx.lowerNode(node.Children[0])
+	if err != nil {
+		return nil, err
+	}
+	right, err := ctx.lowerNode(node.Children[1])
+	if err != nil {
+		return nil, err
+	}
+	on, err := ctx.lowerExpr(node.Children[2])
+	if err != nil {
+		return nil, err
+	}
+
+	return rel.Join{
+		DiagAnchor: node.ID,
+		Kind:       kind,
+		Left:       left,
+		Right:      right,
+		On:         on,
+	}, nil
+}
+
+// lowerGroupBy converts a GROUP_BY builtin into a rel.Aggregate.
+//
+// Shape:
+//   - Children[0]: NodeTypeTableQuery
+//   - Children[1..]: NodeTypeLiteral (DataTypeString) → GroupBy列名
+//              OR NodeTypeFormula (SUM/COUNT/AVG/MIN/MAX) → AggExpr
+//
+// Aggregate formula shape:
+//   ASTNode{Type: formula, Value: "SUM"}
+//     ├── ASTNode{Type: variable, Value: "salary"}  ← 集約対象列
+//     └── ASTNode{Type: literal,  Value: "total"}   ← alias
+func (ctx *lowerContext) lowerGroupBy(node *ast.ASTNode) (rel.RelNode, error) {
+	if len(node.Children) < 2 {
+		return nil, fmt.Errorf("lower: GROUP_BY requires at least 2 arguments, got %d (anchor: %s)", len(node.Children), node.ID)
+	}
+	if node.Children[0].Type != ast.NodeTypeTableQuery {
+		return nil, fmt.Errorf("lower: GROUP_BY first argument must be a table query, got %s (anchor: %s)", node.Children[0].Type, node.ID)
+	}
+
+	input, err := ctx.lowerNode(node.Children[0])
+	if err != nil {
+		return nil, err
+	}
+
+	var groupBy []string
+	var aggs []rel.AggExpr
+
+	for i, child := range node.Children[1:] {
+		switch child.Type {
+		case ast.NodeTypeLiteral:
+			if child.DataType != expr.DataTypeString {
+				return nil, fmt.Errorf("lower: GROUP_BY column argument %d must be a string literal, got datatype=%s (anchor: %s)", i+1, child.DataType, node.ID)
+			}
+			groupBy = append(groupBy, child.Value)
+		case ast.NodeTypeFormula:
+			agg, err := lowerAggExpr(child, i+1, node.ID)
+			if err != nil {
+				return nil, err
+			}
+			aggs = append(aggs, agg)
+		default:
+			return nil, fmt.Errorf("lower: GROUP_BY argument %d must be a string literal or aggregate function, got %s (anchor: %s)", i+1, child.Type, node.ID)
+		}
+	}
+
+	if len(aggs) == 0 {
+		return nil, fmt.Errorf("lower: GROUP_BY requires at least one aggregate function (anchor: %s)", node.ID)
+	}
+
+	return rel.Aggregate{
+		DiagAnchor: node.ID,
+		Input:      input,
+		GroupBy:    groupBy,
+		Aggs:       aggs,
+	}, nil
+}
+
+// lowerAggExpr converts an aggregate function ASTNode into a rel.AggExpr.
+//
+// Shape:
+//   ASTNode{Type: formula, Value: "SUM" | "COUNT" | "AVG" | "MIN" | "MAX"}
+//     ├── ASTNode{Type: variable, Value: <col>}   ← 集約対象列
+//     └── ASTNode{Type: literal,  Value: <alias>} ← alias
+func lowerAggExpr(node *ast.ASTNode, argIdx int, parentID string) (rel.AggExpr, error) {
+	validFuncs := map[string]rel.AggFunc{
+		"SUM":   rel.AggSum,
+		"COUNT": rel.AggCount,
+		"AVG":   rel.AggAvg,
+		"MIN":   rel.AggMin,
+		"MAX":   rel.AggMax,
+	}
+	aggFunc, ok := validFuncs[node.Value]
+	if !ok {
+		return rel.AggExpr{}, fmt.Errorf("lower: unsupported aggregate function %q at argument %d (anchor: %s)", node.Value, argIdx, parentID)
+	}
+	if len(node.Children) != 2 {
+		return rel.AggExpr{}, fmt.Errorf("lower: %s requires exactly 2 children (col, alias), got %d (anchor: %s)", node.Value, len(node.Children), parentID)
+	}
+	colNode := node.Children[0]
+	aliasNode := node.Children[1]
+	if colNode.Type != ast.NodeTypeVariable {
+		return rel.AggExpr{}, fmt.Errorf("lower: %s first argument must be a variable, got %s (anchor: %s)", node.Value, colNode.Type, parentID)
+	}
+	if aliasNode.Type != ast.NodeTypeLiteral || aliasNode.DataType != expr.DataTypeString {
+		return rel.AggExpr{}, fmt.Errorf("lower: %s second argument must be a string literal alias, got %s (anchor: %s)", node.Value, aliasNode.Type, parentID)
+	}
+	return rel.AggExpr{
+		Func:  aggFunc,
+		Col:   colNode.Value,
+		Alias: aliasNode.Value,
 	}, nil
 }
 
