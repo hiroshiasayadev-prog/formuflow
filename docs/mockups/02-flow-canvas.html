@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* background */
+  --bg-canvas:   #111118;
+  --bg-dot:      rgba(255,255,255,0.07);
+  --dot-size:    1.5px;
+  --dot-spacing: 24px;
+
+  /* type color — VSCode green */
+  --type-fg:     #4ade80;
+  --type-bg:     rgba(74,222,128,0.15);
+
+  /* selection */
+  --select-ring: rgba(255,255,255,0.45);
+
+  /* component accent colors */
+  --formula-h:   rgba(99,102,241,0.22);
+  --formula-c:   #a5b4fc;
+  --formula-ic:  #6366f1;
+  --flow-h:      rgba(20,184,166,0.18);
+  --flow-c:      #5eead4;
+  --flow-ic:     #14b8a6;
+  --const-h:     rgba(245,158,11,0.18);
+  --const-c:     #fcd34d;
+  --const-ic:    #f59e0b;
+  --dbtable-h:   rgba(244,63,94,0.18);
+  --dbtable-c:   #fda4af;
+  --dbtable-ic:  #f43f5e;
+  --input-h:     rgba(6,182,212,0.18);
+  --input-c:     #67e8f9;
+  --input-ic:    #06b6d4;
+  --return-h:    rgba(168,85,247,0.18);
+  --return-c:    #d8b4fe;
+  --return-ic:   #a855f7;
+  --container-h: rgba(129,140,248,0.18);
+  --container-c: #c7d2fe;
+  --container-ic:#818cf8;
+
+  /* edge */
+  --edge-color:  #9ca3af;
+  --edge-hover:  rgba(74,222,128,0.6);
+}
+
+body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  background: var(--bg-canvas);
+}
+
+/* ── dot grid ── */
+.canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-image: radial-gradient(circle, var(--bg-dot) var(--dot-size), transparent var(--dot-size));
+  background-size: var(--dot-spacing) var(--dot-spacing);
+}
+
+/* ── fit button ── */
+.fit-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 100;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.5);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-weight: 600;
+  transition: background 0.15s, color 0.15s;
+}
+.fit-btn:hover {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.9);
+}
+.katex-toggle-btn {
+  right: 56px; /* fit-btnの左隣 */
+}
+.katex-toggle-btn.katex-off {
+  color: rgba(255,255,255,0.2);
+}
+.katex-toggle-btn.katex-off:hover {
+  color: rgba(255,255,255,0.5);
+}
+
+/* ── node katex strip ── */
+.node-katex {
+  padding: 5px 12px 4px;
+  background: rgba(0,0,0,0.15);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  font-size: 11px;
+  color: rgba(255,255,255,0.75);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.node-katex .katex { font-size: 0.95em; }
+.node {
+  position: absolute;
+  width: 224px;
+  border-radius: 10px;
+  filter: drop-shadow(0 6px 24px rgba(0,0,0,0.55));
+  cursor: grab;
+  transition: filter 0.15s;
+}
+.node:active { cursor: grabbing; }
+.node.selected .node-body {
+  border-color: var(--select-ring);
+  box-shadow: 0 0 0 1.5px var(--select-ring);
+}
+.node.selected .node-header {
+  border-bottom-color: var(--select-ring);
+}
+
+.node-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  border-radius: 10px 10px 0 0;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.node-icon {
+  width: 15px; height: 15px;
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px; font-weight: 700;
+  flex-shrink: 0;
+}
+.node-name {
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.node-body {
+  display: flex;
+  border-radius: 0 0 10px 10px;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-top: none;
+  min-height: 44px;
+}
+.ports-col { flex: 1; padding: 8px 0; display: flex; flex-direction: column; gap: 5px; }
+.ports-col.inputs { align-items: flex-start; }
+.ports-col.outputs { align-items: flex-end; }
+
+.port-row {
+  display: flex; align-items: center; gap: 4px;
+  position: relative; width: 100%;
+}
+.ports-col.inputs  .port-row { padding-right: 8px; }
+.ports-col.outputs .port-row { padding-left: 8px; flex-direction: row-reverse; }
+
+.handle {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.25);
+  background: #111118;
+  flex-shrink: 0;
+  cursor: crosshair;
+  position: relative;
+  transition: transform 0.12s, border-color 0.12s;
+}
+.handle:hover { transform: scale(1.5); border-color: var(--type-fg); }
+.handle.no-hover:hover { transform: none; border-color: rgba(255,255,255,0.25); }
+
+/* type badge — all green */
+.type-badge {
+  font-size: 8px; font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--type-bg);
+  color: var(--type-fg);
+  flex-shrink: 0;
+}
+
+.var-name {
+  font-size: 10px;
+  color: rgba(255,255,255,0.88);
+  white-space: nowrap;
+}
+.port-label {
+  font-size: 8px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
+  padding: 0 12px;
+  margin-bottom: 1px;
+}
+.divider {
+  width: 1px;
+  background: rgba(255,255,255,0.05);
+  margin: 6px 0;
+  flex-shrink: 0;
+}
+
+/* themes — header + icon + name color only */
+.theme-formula .node-header { background: var(--formula-h); }
+.theme-formula .node-icon   { background: var(--formula-ic); color: #fff; }
+.theme-formula .node-name   { color: var(--formula-c); }
+
+.theme-flow .node-header { background: var(--flow-h); }
+.theme-flow .node-icon   { background: var(--flow-ic); color: #fff; }
+.theme-flow .node-name   { color: var(--flow-c); }
+
+.theme-const .node-header { background: var(--const-h); }
+.theme-const .node-icon   { background: var(--const-ic); color: #fff; }
+.theme-const .node-name   { color: var(--const-c); }
+
+.theme-dbtable .node-header { background: var(--dbtable-h); }
+.theme-dbtable .node-icon   { background: var(--dbtable-ic); color: #fff; }
+.theme-dbtable .node-name   { color: var(--dbtable-c); }
+
+.theme-input .node-header { background: var(--input-h); }
+.theme-input .node-icon   { background: var(--input-ic); color: #fff; }
+.theme-input .node-name   { color: var(--input-c); }
+
+.theme-return .node-header { background: var(--return-h); }
+.theme-return .node-icon   { background: var(--return-ic); color: #fff; }
+.theme-return .node-name   { color: var(--return-c); }
+
+.theme-container .node-header { background: var(--container-h); }
+.theme-container .node-icon   { background: var(--container-ic); color: #fff; }
+.theme-container .node-name   { color: var(--container-c); }
+
+/* ── container node ── */
+.container-body {
+  display: flex;
+  align-items: stretch;
+  border-radius: 0 0 10px 10px;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-top: none;
+  background: rgba(255,255,255,0.025);
+  min-height: 80px;
+}
+
+.container-slot {
+  flex: 1;
+  margin: 8px 4px;
+  border-radius: 8px;
+  border: 1.5px dashed rgba(129,140,248,0.35);
+  background: rgba(129,140,248,0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 180px;
+  min-height: 60px;
+  position: relative;
+  transition: border-color 0.15s, background 0.15s;
+}
+.container-slot.drag-over {
+  border-color: rgba(129,140,248,0.8);
+  background: rgba(129,140,248,0.12);
+}
+.container-slot.filled {
+  border-style: solid;
+  border-color: rgba(129,140,248,0.4);
+  padding: 6px;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.slot-hint {
+  font-size: 9px;
+  color: rgba(129,140,248,0.5);
+  letter-spacing: 0.4px;
+  pointer-events: none;
+}
+
+/* ── container flip button ── */
+.flip-btn {
+  font-size: 7px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid rgba(129,140,248,0.4);
+  background: rgba(129,140,248,0.1);
+  color: rgba(129,140,248,0.85);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s;
+  line-height: 1.4;
+}
+.flip-btn:hover {
+  background: rgba(129,140,248,0.22);
+  color: #c7d2fe;
+}
+.flip-btn.is-array {
+  border-color: rgba(74,222,128,0.45);
+  background: rgba(74,222,128,0.1);
+  color: rgba(74,222,128,0.9);
+}
+.flip-btn.is-array:hover {
+  background: rgba(74,222,128,0.2);
+}
+
+/* slotにはめたformulaのhandleを非表示 */
+.container-slot.filled .handle {
+  visibility: hidden;
+  pointer-events: none;
+}
+.container-slot .node {
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  width: 100% !important;
+  min-width: 160px;
+  filter: none;
+  margin: 0;
+}
+.edge-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.edge-path {
+  fill: none;
+  stroke: var(--edge-color);
+  stroke-width: 1.5;
+}
+
+/* edge type badge — centered on edge */
+.edge-badge {
+  position: absolute;
+  background: var(--type-bg);
+  color: var(--type-fg);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(74,222,128,0.25);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+.edge-error-mark {
+  position: absolute;
+  color: #ef4444;
+  font-size: 10px;
+  font-weight: 700;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+/* ドラッグ中ホバーフィードバック */
+.type-mismatch {
+  color: #6b7280 !important;
+  background: rgba(107,114,128,0.15) !important;
+}
+.type-warn {
+  color: #f97316 !important;
+  background: rgba(249,115,22,0.15) !important;
+}
+.hover-error-mark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 900;
+  color: #ef4444;
+  pointer-events: none;
+  z-index: 10;
+}
+</style>
+</head>
+<body>
+<div class="canvas" id="canvas">
+
+  <!-- fit button -->
+  <button class="fit-btn" title="全体フィット">⊡</button>
+  <button class="fit-btn katex-toggle-btn" id="katex-toggle" title="KaTeX表示切替">KaTeX</button>
+
+  <!-- SVG edge layer -->
+  <svg class="edge-layer" id="edgeLayer"></svg>
+
+  <!-- edge type badges -->
+  <div id="edgeBadges"></div>
+
+  <!-- DBTable node -->
+  <div class="node theme-dbtable" id="n-dbtable" style="left:60px; top:140px;">
+    <div class="node-header">
+      <div class="node-icon">DB</div>
+      <span class="node-name">transistor_iv_table</span>
+    </div>
+    <div class="node-body">
+      <div class="ports-col inputs"></div>
+      <div class="divider"></div>
+      <div class="ports-col outputs">
+        <div class="port-label">output</div>
+        <div class="port-row">
+          <div class="handle" id="h-dbtable-table" data-type="Tbl" data-dir="out"></div>
+          <span class="type-badge">Tbl</span>
+          <span class="var-name">table</span>
+        </div>
+        <div class="port-row">
+          <div class="handle" id="h-dbtable-id" data-type="Ref" data-dir="out"></div>
+          <span class="type-badge">Ref</span>
+          <span class="var-name">transistor_id</span>
+        </div>
+        <div class="port-row">
+          <div class="handle" data-type="Ref" data-dir="out"></div>
+          <span class="type-badge">Ref</span>
+          <span class="var-name">vgs</span>
+        </div>
+        <div class="port-row">
+          <div class="handle" data-type="Ref" data-dir="out"></div>
+          <span class="type-badge">Ref</span>
+          <span class="var-name">ids</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Const node -->
+  <div class="node theme-const" id="n-const" style="left:60px; top:360px;">
+    <div class="node-header">
+      <div class="node-icon">C</div>
+      <span class="node-name">transistorId</span>
+    </div>
+    <div class="node-body">
+      <div class="ports-col inputs"></div>
+      <div class="divider"></div>
+      <div class="ports-col outputs">
+        <div class="port-label">output</div>
+        <div class="port-row">
+          <div class="handle" id="h-const-val" data-type="Str" data-dir="out"></div>
+          <span class="type-badge">Str</span>
+          <span class="var-name">value</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flow node (selected) -->
+  <div class="node theme-flow selected" id="n-flow" style="left:370px; top:160px;">
+    <div class="node-header">
+      <div class="node-icon">⇢</div>
+      <span class="node-name">GetIVCharByTransistorId</span>
+    </div>
+    <div class="node-body">
+      <div class="ports-col inputs">
+        <div class="port-label">input</div>
+        <div class="port-row">
+          <div class="handle" id="h-flow-tbl" data-type="Tbl" data-dir="in"></div>
+          <span class="type-badge">Tbl</span>
+          <span class="var-name">table</span>
+        </div>
+        <div class="port-row">
+          <div class="handle" id="h-flow-id-in" data-type="Ref" data-dir="in"></div>
+          <span class="type-badge">Ref</span>
+          <span class="var-name">transistor_id</span>
+        </div>
+        <div class="port-row">
+          <div class="handle" id="h-flow-sid" data-type="Str" data-dir="in"></div>
+          <span class="type-badge">Str</span>
+          <span class="var-name">targetId</span>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="ports-col outputs">
+        <div class="port-label">output</div>
+        <div class="port-row">
+          <div class="handle" id="h-flow-iv" data-type="Col" data-dir="out"></div>
+          <span class="type-badge">Col</span>
+          <span class="var-name">ivChar</span>
+        </div>
+        <div class="port-row">
+          <div class="handle" id="h-flow-vgs" data-type="Col" data-dir="out"></div>
+          <span class="type-badge">Col</span>
+          <span class="var-name">vgs</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Formula node -->
+  <div class="node theme-formula" id="n-formula" data-katex="= g_m \cdot \frac{1}{2\pi C}" style="left:700px; top:200px;">
+    <div class="node-header">
+      <div class="node-icon">fx</div>
+      <span class="node-name">CalcGainBandwidth</span>
+    </div>
+    <div class="node-katex"><span class="katex-eq"></span></div>
+    <div class="node-body">
+      <div class="ports-col inputs">
+        <div class="port-label">input</div>
+        <div class="port-row">
+          <div class="handle" id="h-formula-iv" data-type="Col" data-dir="in"></div>
+          <span class="type-badge">Col</span>
+          <span class="var-name">ivChar</span>
+        </div>
+        <div class="port-row">
+          <div class="handle" id="h-formula-vbias" data-type="F64" data-dir="in"></div>
+          <span class="type-badge">F64</span>
+          <span class="var-name">vBias</span>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="ports-col outputs">
+        <div class="port-label">output</div>
+        <div class="port-row">
+          <div class="handle" id="h-formula-out" data-type="F64" data-dir="out"></div>
+          <span class="type-badge">F64</span>
+          <span class="var-name">CalcGainBandwidth</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DefaultInput node -->
+  <div class="node theme-input" id="n-input" style="left:940px; top:100px;">
+    <div class="node-header">
+      <div class="node-icon">▶</div>
+      <span class="node-name">Input</span>
+    </div>
+    <div class="node-body">
+      <div class="ports-col inputs"></div>
+      <div class="divider"></div>
+      <div class="ports-col outputs">
+        <div class="port-row">
+          <div class="handle" id="h-input-gain"></div>
+          <span class="type-badge">F64</span>
+          <span class="var-name">gainBW</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DefaultReturn node -->
+  <div class="node theme-return" id="n-return" style="left:940px; top:240px;">
+    <div class="node-header">
+      <div class="node-icon">◀</div>
+      <span class="node-name">Return</span>
+    </div>
+    <div class="node-body">
+      <div class="ports-col inputs">
+        <div class="port-label">input</div>
+        <div class="port-row">
+          <div class="handle" id="h-return-in" data-type="I32" data-dir="in"></div>
+          <span class="type-badge">I32</span>
+          <span class="var-name">gainBW</span>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="ports-col outputs"></div>
+    </div>
+  </div>
+
+  <!-- Map/Container node -->
+  <div class="node theme-container" id="n-container" style="left:60px; top:500px; width:auto; min-width:320px;">
+    <div class="node-header">
+      <div class="node-icon">⊞</div>
+      <span class="node-name">Map</span>
+    </div>
+    <div class="container-body">
+      <div class="ports-col inputs container-ports-in" id="map-ports-in" style="min-width:100px;">
+        <!-- formula drop後に動的生成 -->
+      </div>
+      <div class="container-slot" id="container-slot">
+        <span class="slot-hint">drop formula here</span>
+      </div>
+      <div class="ports-col outputs container-ports-out" id="map-ports-out" style="min-width:100px;">
+        <!-- formula drop後に動的生成 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Formula node (to drop into Map) -->
+  <div class="node theme-formula" id="n-formula2" data-katex="= x \cdot y" style="left:60px; top:660px; width:200px;">
+    <div class="node-header">
+      <div class="node-icon">fx</div>
+      <span class="node-name">CalcGain</span>
+    </div>
+    <div class="node-katex"><span class="katex-eq"></span></div>
+    <div class="node-body">
+      <div class="ports-col inputs">
+        <div class="port-label">input</div>
+        <div class="port-row">
+          <div class="handle" data-type="F64" data-dir="in"></div>
+          <span class="type-badge">F64</span>
+          <span class="var-name">x</span>
+        </div>
+        <div class="port-row">
+          <div class="handle" data-type="F64" data-dir="in"></div>
+          <span class="type-badge">F64</span>
+          <span class="var-name">y</span>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="ports-col outputs">
+        <div class="port-label">output</div>
+        <div class="port-row">
+          <div class="handle" data-type="F64" data-dir="out"></div>
+          <span class="type-badge">F64</span>
+          <span class="var-name">CalcGain</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const svg = document.getElementById('edgeLayer');
+const badgeContainer = document.getElementById('edgeBadges');
+
+// ── SVG size sync ──
+function syncSvgSize() {
+  const r = document.getElementById('canvas').getBoundingClientRect();
+  svg.setAttribute('width',   r.width);
+  svg.setAttribute('height',  r.height);
+  svg.setAttribute('viewBox', `0 0 ${r.width} ${r.height}`);
+}
+window.addEventListener('resize', () => { syncSvgSize(); redrawEdges(); });
+
+// ── type compat ──
+// ok: same type / warn: int<->float / error: otherwise
+function typeCompat(a, b) {
+  if (a === b) return 'ok';
+  const numeric = ['I32','I64','F32','F64'];
+  if (numeric.includes(a) && numeric.includes(b)) return 'warn';
+  return 'error';
+}
+const EDGE_COLOR = { ok: '#9ca3af', warn: '#f97316', error: '#ef4444' };
+
+// ── static edges (fromId, toId, fromType, toType) ──
+const STATIC_EDGES = [
+  ['h-dbtable-table', 'h-flow-tbl',   'Tbl', 'Tbl'],
+  ['h-dbtable-id',    'h-flow-id-in', 'Ref', 'Ref'],
+  ['h-const-val',     'h-flow-sid',   'Str', 'Str'],
+  ['h-flow-iv',       'h-formula-iv', 'Col', 'Col'],
+  ['h-formula-out',   'h-return-in',  'F64', 'I32'],
+];
+
+// dynamic edges drawn by user D&D: { fromId, toId, fromType, toType }
+const dynamicEdges = [];
+
+// ── geometry ──
+function getHandlePos(el) {
+  const r  = el.getBoundingClientRect();
+  const cr = document.getElementById('canvas').getBoundingClientRect();
+  const isOut = el.dataset.dir === 'out';
+  return { x: (isOut ? r.right : r.left) - cr.left, y: (r.top + r.bottom) / 2 - cr.top };
+}
+function getHandlePosById(id) {
+  const el = document.getElementById(id);
+  return el ? getHandlePos(el) : null;
+}
+
+function lerp(a, b, t) { return { x: a.x+(b.x-a.x)*t, y: a.y+(b.y-a.y)*t }; }
+function dist(a, b) { return Math.sqrt((b.x-a.x)**2+(b.y-a.y)**2)||1; }
+function midpoint(a, b) { return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
+
+function evalCubic(P, t) {
+  const p01=lerp(P[0],P[1],t), p12=lerp(P[1],P[2],t), p23=lerp(P[2],P[3],t);
+  const p012=lerp(p01,p12,t),  p123=lerp(p12,p23,t);
+  return { pt:lerp(p012,p123,t), p01, p12, p23, p012, p123 };
+}
+function splitCubic(P, t0, t1) {
+  const s0 = evalCubic(P, t0);
+  const Q  = [s0.pt, s0.p123, s0.p23, P[3]];
+  const tt = t0 < 1 ? (t1-t0)/(1-t0) : 0;
+  const s1 = evalCubic(Q, tt);
+  return [Q[0], s1.p01, s1.p012, s1.pt];
+}
+function bezierPath(from, to) {
+  const dx = Math.abs(to.x-from.x)*0.5;
+  return [
+    {x:from.x,    y:from.y},
+    {x:from.x+dx, y:from.y},
+    {x:to.x-dx,   y:to.y},
+    {x:to.x,      y:to.y},
+  ];
+}
+function pathStr(seg) {
+  return `M ${seg[0].x},${seg[0].y} C ${seg[1].x},${seg[1].y} ${seg[2].x},${seg[2].y} ${seg[3].x},${seg[3].y}`;
+}
+
+function drawEdgeSplit(from, to, color, label, isError) {
+  const P   = bezierPath(from, to);
+  const gap = 10;
+  const d   = dist(from, to);
+  const t0  = Math.max(0, 0.5 - gap/d);
+  const t1  = Math.min(1, 0.5 + gap/d);
+
+  for (const [ta, tb] of [[0, t0],[t1, 1]]) {
+    if (ta >= tb) continue;
+    const seg = splitCubic(P, ta, tb);
+    const p = document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d', pathStr(seg));
+    p.setAttribute('fill', 'none');
+    p.setAttribute('stroke', color);
+    p.setAttribute('stroke-width', '1.5');
+    svg.appendChild(p);
+  }
+
+  // badge
+  const mid = midpoint(from, to);
+  const badge = document.createElement('div');
+  badge.className = 'edge-badge';
+  badge.textContent = label;
+  if (isError) {
+    badge.style.color      = '#6b7280';
+    badge.style.background = 'rgba(107,114,128,0.15)';
+    badge.style.borderColor= 'rgba(107,114,128,0.3)';
+  }
+  badge.style.left = mid.x + 'px';
+  badge.style.top  = mid.y + 'px';
+  badgeContainer.appendChild(badge);
+
+  // error ✕ mark
+  if (isError) {
+    const x = document.createElement('div');
+    x.className = 'edge-error-mark';
+    x.textContent = '✕';
+    x.style.left = (mid.x + 14) + 'px';
+    x.style.top  = (mid.y - 7)  + 'px';
+    badgeContainer.appendChild(x);
+  }
+}
+
+function redrawEdges() {
+  svg.innerHTML = '';
+  badgeContainer.innerHTML = '';
+
+  // static
+  for (const [fromId, toId, fromType, toType] of STATIC_EDGES) {
+    const from = getHandlePosById(fromId);
+    const to   = getHandlePosById(toId);
+    if (!from || !to) continue;
+    const compat = typeCompat(fromType, toType);
+    const isErr  = compat === 'error';
+    const label  = compat === 'ok' ? fromType : `${fromType}→${toType}`;
+    drawEdgeSplit(from, to, EDGE_COLOR[compat], label, isErr);
+  }
+
+  // dynamic
+  for (const e of dynamicEdges) {
+    const from = getHandlePosById(e.fromId);
+    const to   = getHandlePosById(e.toId);
+    if (!from || !to) continue;
+    const compat = typeCompat(e.fromType, e.toType);
+    const isErr  = compat === 'error';
+    const label  = compat === 'ok' ? e.fromType : `${e.fromType}→${e.toType}`;
+    drawEdgeSplit(from, to, EDGE_COLOR[compat], label, isErr);
+  }
+}
+
+// ── handle D&D connection ──
+let draggingHandle = null;
+let ghostPath = null;
+
+function applyGlobalFeedback() {
+  document.querySelectorAll('.handle').forEach(h => {
+    if (h === draggingHandle.el) return;
+    const srcDir = draggingHandle.fromDir;
+    const tgtDir = h.dataset.dir || 'in';
+    const validDir = (srcDir === 'out' && tgtDir === 'in') || (srcDir === 'in' && tgtDir === 'out');
+    const compat = validDir
+      ? typeCompat(draggingHandle.fromType, h.dataset.type || 'any')
+      : 'error';
+    const row = h.closest('.port-row');
+    if (!row) return;
+    if (compat === 'error') {
+      h.classList.add('no-hover');
+      row.querySelectorAll('.type-badge, .var-name').forEach(el => el.classList.add('type-mismatch'));
+      const mark = document.createElement('span');
+      mark.className = 'hover-error-mark';
+      mark.textContent = '✕';
+      h.appendChild(mark);
+    } else if (compat === 'warn') {
+      h.classList.add('no-hover');
+      row.querySelectorAll('.type-badge, .var-name').forEach(el => el.classList.add('type-warn'));
+    }
+  });
+}
+
+function clearGlobalFeedback() {
+  document.querySelectorAll('.type-mismatch, .type-warn').forEach(el => {
+    el.classList.remove('type-mismatch', 'type-warn');
+  });
+  document.querySelectorAll('.no-hover').forEach(el => el.classList.remove('no-hover'));
+  document.querySelectorAll('.hover-error-mark').forEach(el => el.remove());
+}
+
+document.querySelectorAll('.handle').forEach(h => {
+  h.addEventListener('mousedown', e => {
+    e.stopPropagation();
+    draggingHandle = {
+      el:       h,
+      fromPos:  getHandlePos(h),
+      fromType: h.dataset.type || 'any',
+      fromDir:  h.dataset.dir  || 'out',
+    };
+    ghostPath = document.createElementNS('http://www.w3.org/2000/svg','path');
+    ghostPath.setAttribute('fill','none');
+    ghostPath.setAttribute('stroke','rgba(255,255,255,0.4)');
+    ghostPath.setAttribute('stroke-width','1.5');
+    ghostPath.setAttribute('stroke-dasharray','4 3');
+    svg.appendChild(ghostPath);
+    applyGlobalFeedback();
+    e.preventDefault();
+  });
+});
+
+document.addEventListener('mousemove', e => {
+  if (!draggingHandle) return;
+  const cr  = document.getElementById('canvas').getBoundingClientRect();
+  const cur = { x: e.clientX - cr.left, y: e.clientY - cr.top };
+  const from = draggingHandle.fromPos;
+  const P = draggingHandle.fromDir === 'out'
+    ? bezierPath(from, cur)
+    : bezierPath(cur, from);
+  ghostPath.setAttribute('d', pathStr(P));
+});
+
+document.addEventListener('mouseup', e => {
+  if (!draggingHandle) return;
+  clearGlobalFeedback();
+  if (ghostPath) { svg.removeChild(ghostPath); ghostPath = null; }
+
+  const target = document.elementFromPoint(e.clientX, e.clientY);
+  if (target && target.classList.contains('handle') && target !== draggingHandle.el) {
+    const srcDir = draggingHandle.fromDir;
+    const tgtDir = target.dataset.dir;
+    if ((srcDir === 'out' && tgtDir === 'in') || (srcDir === 'in' && tgtDir === 'out')) {
+      const fromEl = srcDir === 'out' ? draggingHandle.el : target;
+      const toEl   = srcDir === 'out' ? target : draggingHandle.el;
+      dynamicEdges.push({
+        fromId:   fromEl.id || null,
+        toId:     toEl.id   || null,
+        fromType: fromEl.dataset.type || 'any',
+        toType:   toEl.dataset.type   || 'any',
+        fromEl, toEl,
+      });
+    }
+  }
+
+  draggingHandle = null;
+  redrawEdges();
+});
+
+// ── container port継承 ──
+function inheritPorts(formulaNode) {
+  // タイトル更新
+  const formulaName = formulaNode.querySelector('.node-name')?.textContent || '';
+  const containerName = document.querySelector('#n-container .node-name');
+  if (containerName) containerName.textContent = `Map: ${formulaName}`;
+  const portsIn  = document.getElementById('map-ports-in');
+  const portsOut = document.getElementById('map-ports-out');
+  portsIn.innerHTML  = '';
+  portsOut.innerHTML = '';
+
+  // inputポートを継承 + flipボタン付与
+  const inputHandles = formulaNode.querySelectorAll('.ports-col.inputs .port-row');
+  if (inputHandles.length) {
+    const label = document.createElement('div');
+    label.className = 'port-label';
+    label.textContent = 'input';
+    portsIn.appendChild(label);
+  }
+  inputHandles.forEach(row => {
+    const origType = row.querySelector('.handle')?.dataset.type || 'F64';
+    const varName  = row.querySelector('.var-name')?.textContent || '';
+    const newRow   = document.createElement('div');
+    newRow.className = 'port-row';
+    newRow.dataset.baseType = origType;
+    newRow.dataset.isArray  = 'false';
+
+    const handle = document.createElement('div');
+    handle.className = 'handle';
+    handle.dataset.dir  = 'in';
+    handle.dataset.type = origType;
+
+    const flipBtn = document.createElement('button');
+    flipBtn.className = 'flip-btn';
+    flipBtn.textContent = 'to array';
+    flipBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      const arr = newRow.dataset.isArray === 'true';
+      newRow.dataset.isArray = arr ? 'false' : 'true';
+      flipBtn.textContent = arr ? 'to array' : 'to scalar';
+      flipBtn.classList.toggle('is-array', !arr);
+      const badge = newRow.querySelector('.type-badge');
+      const newType = arr ? origType : 'Col';
+      badge.textContent = newType;
+      handle.dataset.type = newType;
+      updateContainerOutput();
+    });
+
+    const badge = document.createElement('span');
+    badge.className = 'type-badge';
+    badge.textContent = origType;
+
+    const name = document.createElement('span');
+    name.className = 'var-name';
+    name.textContent = varName;
+
+    // handle | flipBtn | badge | varName
+    newRow.append(handle, flipBtn, badge, name);
+    portsIn.appendChild(newRow);
+  });
+
+  // outputポートを継承
+  const outputHandles = formulaNode.querySelectorAll('.ports-col.outputs .port-row');
+  if (outputHandles.length) {
+    const label = document.createElement('div');
+    label.className = 'port-label';
+    label.textContent = 'output';
+    portsOut.appendChild(label);
+  }
+  outputHandles.forEach(row => {
+    const origType = row.querySelector('.handle')?.dataset.type || 'F64';
+    const varName  = row.querySelector('.var-name')?.textContent || '';
+    const newRow   = document.createElement('div');
+    newRow.className = 'port-row';
+    newRow.id = 'map-out-row-' + varName;
+
+    const handle = document.createElement('div');
+    handle.className = 'handle';
+    handle.dataset.dir      = 'out';
+    handle.dataset.type     = origType;
+    handle.dataset.baseType = origType;  // ← 元の型を保持
+    handle.id = 'map-out-handle-' + varName;
+
+    const badge = document.createElement('span');
+    badge.className = 'type-badge';
+    badge.textContent = origType;
+    badge.id = 'map-out-badge-' + varName;
+
+    const name = document.createElement('span');
+    name.className = 'var-name';
+    name.textContent = varName;
+
+    newRow.append(handle, badge, name);
+    portsOut.appendChild(newRow);
+  });
+
+  updateContainerOutput();
+  redrawEdges();
+}
+
+function updateContainerOutput() {
+  const portsIn  = document.getElementById('map-ports-in');
+  const portsOut = document.getElementById('map-ports-out');
+  const rows = portsIn.querySelectorAll('.port-row');
+  const anyArray = Array.from(rows).some(r => r.dataset.isArray === 'true');
+
+  portsOut.querySelectorAll('.port-row').forEach(row => {
+    const handle = row.querySelector('.handle');
+    const badge  = row.querySelector('.type-badge');
+    if (!handle || !badge) return;
+    const base    = handle.dataset.baseType || handle.dataset.type;
+    const newType = anyArray ? 'Col' : base;
+    handle.dataset.type  = newType;
+    badge.textContent    = newType;
+  });
+}
+let draggingNode = null, ox = 0, oy = 0;
+document.querySelectorAll('.node').forEach(n => {
+  n.addEventListener('mousedown', e => {
+    if (e.target.classList.contains('handle')) return;
+    // slotの中のノードは親containerを動かさない
+    if (n.closest('.container-slot')) return;
+    draggingNode = n;
+    const r = n.getBoundingClientRect();
+    ox = e.clientX - r.left;
+    oy = e.clientY - r.top;
+    e.preventDefault();
+  });
+});
+
+document.addEventListener('mousemove', e => {
+  if (!draggingNode) return;
+  const cr = document.getElementById('canvas').getBoundingClientRect();
+  draggingNode.style.left = (e.clientX - cr.left - ox) + 'px';
+  draggingNode.style.top  = (e.clientY - cr.top  - oy) + 'px';
+
+  // slot hover highlight
+  document.querySelectorAll('.container-slot').forEach(slot => {
+    const sr = slot.getBoundingClientRect();
+    const over = e.clientX >= sr.left && e.clientX <= sr.right
+              && e.clientY >= sr.top  && e.clientY <= sr.bottom;
+    slot.classList.toggle('drag-over', over && !slot.classList.contains('filled'));
+  });
+
+  redrawEdges();
+});
+
+document.addEventListener('mouseup', e => {
+  if (!draggingNode) return;
+  const node = draggingNode;
+  draggingNode = null;
+
+  // slotにドロップ判定
+  document.querySelectorAll('.container-slot').forEach(slot => {
+    slot.classList.remove('drag-over');
+    if (slot.classList.contains('filled')) return;
+    const sr = slot.getBoundingClientRect();
+    const over = e.clientX >= sr.left && e.clientX <= sr.right
+              && e.clientY >= sr.top  && e.clientY <= sr.bottom;
+    if (over) {
+      slot.classList.add('filled');
+      slot.querySelector('.slot-hint')?.remove();
+      slot.appendChild(node);
+      inheritPorts(node);
+    }
+  });
+
+  redrawEdges();
+});
+
+// ── selection ──
+document.querySelectorAll('.node').forEach(n => {
+  n.addEventListener('click', e => {
+    if (e.target.classList.contains('handle')) return;
+    document.querySelectorAll('.node').forEach(x => x.classList.remove('selected'));
+    n.classList.add('selected');
+  });
+});
+document.getElementById('canvas').addEventListener('click', e => {
+  if (!e.target.closest('.node'))
+    document.querySelectorAll('.node').forEach(x => x.classList.remove('selected'));
+});
+
+// ── KaTeX toggle ──
+let katexVisible = true;
+document.getElementById('katex-toggle').addEventListener('click', () => {
+  katexVisible = !katexVisible;
+  document.getElementById('katex-toggle').classList.toggle('katex-off', !katexVisible);
+  document.querySelectorAll('.node-katex').forEach(el => {
+    el.style.display = katexVisible ? '' : 'none';
+  });
+});
+
+// ── KaTeX render ──
+function renderKatex() {
+  if (typeof katex === 'undefined') { setTimeout(renderKatex, 50); return; }
+  document.querySelectorAll('.node[data-katex]').forEach(node => {
+    const eq   = node.dataset.katex;
+    const span = node.querySelector('.katex-eq');
+    if (!span || !eq) return;
+    try {
+      span.innerHTML = '';
+      const rendered = document.createElement('span');
+      katex.render(eq, rendered, { throwOnError: false, displayMode: false });
+      span.appendChild(rendered);
+    } catch(e) { span.textContent = eq; }
+  });
+}
+
+// ── init ──
+requestAnimationFrame(() => { syncSvgSize(); redrawEdges(); renderKatex(); });
+</script>
+
+</body>
+</html>
