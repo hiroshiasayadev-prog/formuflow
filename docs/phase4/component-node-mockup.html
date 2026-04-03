@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #1a1a2e;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    display: flex;
+    gap: 48px;
+    padding: 60px 48px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .canvas-bg {
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(circle at 20% 50%, rgba(99,102,241,0.06) 0%, transparent 50%),
+      radial-gradient(circle at 80% 20%, rgba(20,184,166,0.05) 0%, transparent 50%),
+      #111118;
+    background-image:
+      radial-gradient(circle at 20% 50%, rgba(99,102,241,0.06) 0%, transparent 50%),
+      radial-gradient(circle at 80% 20%, rgba(20,184,166,0.05) 0%, transparent 50%),
+      repeating-linear-gradient(0deg, transparent, transparent 31px, rgba(255,255,255,0.025) 31px, rgba(255,255,255,0.025) 32px),
+      repeating-linear-gradient(90deg, transparent, transparent 31px, rgba(255,255,255,0.025) 31px, rgba(255,255,255,0.025) 32px);
+    z-index: -1;
+  }
+
+  .node {
+    position: relative;
+    width: 240px;
+    border-radius: 10px;
+    overflow: visible;
+    filter: drop-shadow(0 8px 32px rgba(0,0,0,0.5));
+  }
+
+  /* ── header bar ── */
+  .node-header {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 12px;
+    border-radius: 10px 10px 0 0;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+  .node-icon {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .node-name {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ── body ── */
+  .node-body {
+    display: flex;
+    border-radius: 0 0 10px 10px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-top: none;
+    min-height: 48px;
+  }
+
+  .ports-col {
+    flex: 1;
+    padding: 10px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .ports-col.inputs { align-items: flex-start; }
+  .ports-col.outputs { align-items: flex-end; }
+
+  .port-label {
+    font-size: 9px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.25);
+    padding: 0 14px;
+    margin-bottom: 2px;
+  }
+
+  .port-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    position: relative;
+    width: 100%;
+  }
+  .ports-col.inputs .port-row { padding-left: 0; padding-right: 10px; }
+  .ports-col.outputs .port-row { padding-right: 0; padding-left: 10px; flex-direction: row-reverse; }
+
+  /* edge handle — sits at the very edge */
+  .handle {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid;
+    background: #111118;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 2;
+    cursor: crosshair;
+    transition: transform 0.15s;
+  }
+  .handle:hover { transform: scale(1.4); }
+
+  .type-badge {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .var-name {
+    font-size: 10px;
+    color: rgba(255,255,255,0.7);
+    white-space: nowrap;
+  }
+
+  .divider {
+    width: 1px;
+    background: rgba(255,255,255,0.06);
+    margin: 8px 0;
+    flex-shrink: 0;
+  }
+
+  /* ── themes ── */
+
+  /* Formula — indigo */
+  .theme-formula .node-header { background: rgba(99,102,241,0.2); }
+  .theme-formula .node-icon   { background: #6366f1; color: #fff; }
+  .theme-formula .node-name   { color: #a5b4fc; }
+  .theme-formula .handle-in   { border-color: #6366f1; }
+  .theme-formula .handle-out  { border-color: #818cf8; }
+  .theme-formula .type-f      { background: rgba(99,102,241,0.25); color: #a5b4fc; }
+
+  /* Flow — teal */
+  .theme-flow .node-header { background: rgba(20,184,166,0.18); }
+  .theme-flow .node-icon   { background: #14b8a6; color: #fff; }
+  .theme-flow .node-name   { color: #5eead4; }
+  .theme-flow .handle-in   { border-color: #14b8a6; }
+  .theme-flow .handle-out  { border-color: #2dd4bf; }
+  .theme-flow .type-f      { background: rgba(20,184,166,0.2); color: #5eead4; }
+
+  /* Const / Value — amber */
+  .theme-const .node-header { background: rgba(245,158,11,0.18); }
+  .theme-const .node-icon   { background: #f59e0b; color: #fff; }
+  .theme-const .node-name   { color: #fcd34d; }
+  .theme-const .handle-in   { border-color: #f59e0b; }
+  .theme-const .handle-out  { border-color: #fbbf24; }
+  .theme-const .type-f      { background: rgba(245,158,11,0.2); color: #fcd34d; }
+
+  /* DBTable — rose */
+  .theme-dbtable .node-header { background: rgba(244,63,94,0.18); }
+  .theme-dbtable .node-icon   { background: #f43f5e; color: #fff; }
+  .theme-dbtable .node-name   { color: #fda4af; }
+  .theme-dbtable .handle-in   { border-color: #f43f5e; }
+  .theme-dbtable .handle-out  { border-color: #fb7185; }
+  .theme-dbtable .type-f      { background: rgba(244,63,94,0.2); color: #fda4af; }
+
+  /* connected edge demo */
+  svg.edge-demo {
+    position: absolute;
+    pointer-events: none;
+    overflow: visible;
+    top: 0; left: 0;
+    width: 0; height: 0;
+  }
+</style>
+</head>
+<body>
+<div class="canvas-bg"></div>
+
+<!-- FormulaComponent -->
+<div class="node theme-formula">
+  <div class="node-header">
+    <div class="node-icon">fx</div>
+    <span class="node-name">CalcGainBandwidth</span>
+  </div>
+  <div class="node-body">
+    <div class="ports-col inputs">
+      <div class="port-label">input</div>
+      <div class="port-row">
+        <div class="handle handle-in"></div>
+        <span class="type-badge type-f">Col</span>
+        <span class="var-name">ivChar</span>
+      </div>
+      <div class="port-row">
+        <div class="handle handle-in"></div>
+        <span class="type-badge type-f">F64</span>
+        <span class="var-name">vBias</span>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="ports-col outputs">
+      <div class="port-label">output</div>
+      <div class="port-row">
+        <div class="handle handle-out"></div>
+        <span class="type-badge type-f">F64</span>
+        <span class="var-name">gainBW</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FlowComponent -->
+<div class="node theme-flow">
+  <div class="node-header">
+    <div class="node-icon">⇢</div>
+    <span class="node-name">GetIVCharByTransistorId</span>
+  </div>
+  <div class="node-body">
+    <div class="ports-col inputs">
+      <div class="port-label">input</div>
+      <div class="port-row">
+        <div class="handle handle-in"></div>
+        <span class="type-badge type-f">Str</span>
+        <span class="var-name">transistorId</span>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="ports-col outputs">
+      <div class="port-label">output</div>
+      <div class="port-row">
+        <div class="handle handle-out"></div>
+        <span class="type-badge type-f">Col</span>
+        <span class="var-name">ivChar</span>
+      </div>
+      <div class="port-row">
+        <div class="handle handle-out"></div>
+        <span class="type-badge type-f">Col</span>
+        <span class="var-name">vgs</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ValueComponent (Const) -->
+<div class="node theme-const">
+  <div class="node-header">
+    <div class="node-icon">C</div>
+    <span class="node-name">vBias</span>
+  </div>
+  <div class="node-body">
+    <div class="ports-col inputs">
+      <div class="port-label">input</div>
+      <!-- no inputs -->
+    </div>
+    <div class="divider"></div>
+    <div class="ports-col outputs">
+      <div class="port-label">output</div>
+      <div class="port-row">
+        <div class="handle handle-out"></div>
+        <span class="type-badge type-f">F64</span>
+        <span class="var-name">value</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DatabaseTableComponent -->
+<div class="node theme-dbtable">
+  <div class="node-header">
+    <div class="node-icon">DB</div>
+    <span class="node-name">transistor_iv_table</span>
+  </div>
+  <div class="node-body">
+    <div class="ports-col inputs">
+      <div class="port-label">input</div>
+    </div>
+    <div class="divider"></div>
+    <div class="ports-col outputs">
+      <div class="port-label">output</div>
+      <div class="port-row">
+        <div class="handle handle-out"></div>
+        <span class="type-badge type-f">Tbl</span>
+        <span class="var-name">table</span>
+      </div>
+      <div class="port-row">
+        <div class="handle handle-out"></div>
+        <span class="type-badge type-f">Ref</span>
+        <span class="var-name">transistor_id</span>
+      </div>
+      <div class="port-row">
+        <div class="handle handle-out"></div>
+        <span class="type-badge type-f">Ref</span>
+        <span class="var-name">vgs</span>
+      </div>
+      <div class="port-row">
+        <div class="handle handle-out"></div>
+        <span class="type-badge type-f">Ref</span>
+        <span class="var-name">ids</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
