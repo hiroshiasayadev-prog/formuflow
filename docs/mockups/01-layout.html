@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>formuflow — 01 Layout</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg-canvas: #111118; --bg-sidebar: #16161f; --bg-panel: #1a1a26;
+  --bg-tab-bar: #13131c; --bg-tab-active: #111118; --bg-tab-hover: rgba(255,255,255,0.04);
+  --bg-debug: #13131c; --border: rgba(255,255,255,0.07); --border-strong: rgba(255,255,255,0.12);
+  --icon-bar-w: 48px; --panel-w: 240px; --tab-bar-h: 35px; --debug-h: 200px;
+  --text-dim: rgba(255,255,255,0.35); --text-mid: rgba(255,255,255,0.6); --text-bright: rgba(255,255,255,0.88);
+  --accent: #6366f1; --type-fg: #4ade80; --type-bg: rgba(74,222,128,0.15);
+  --warn: #f97316; --error: #ef4444;
+  --dot-color: rgba(255,255,255,0.07); --dot-size: 1.5px; --dot-spacing: 24px;
+}
+html, body { width:100vw; height:100vh; overflow:hidden; font-family:'SF Mono','Fira Code','Cascadia Code',monospace; background:var(--bg-canvas); color:var(--text-bright); font-size:12px; }
+.shell { display:flex; flex-direction:column; width:100vw; height:100vh; }
+/* menu */
+.menu-bar { height:30px; flex-shrink:0; background:var(--bg-sidebar); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 8px; gap:2px; }
+.menu-title { font-size:11px; font-weight:700; color:var(--text-bright); letter-spacing:0.5px; padding:3px 10px 3px 4px; margin-right:4px; }
+.menu-item { padding:3px 8px; font-size:11px; color:var(--text-mid); border-radius:4px; cursor:pointer; transition:background 0.1s,color 0.1s; }
+.menu-item:hover { background:rgba(255,255,255,0.06); color:var(--text-bright); }
+/* app row */
+.app { display:flex; flex:1; min-height:0; overflow:hidden; }
+/* icon bar */
+.icon-bar { width:var(--icon-bar-w); flex-shrink:0; background:var(--bg-sidebar); border-right:1px solid var(--border); display:flex; flex-direction:column; align-items:center; padding:8px 0; gap:2px; z-index:10; }
+.icon-btn { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-dim); font-size:15px; border:none; background:transparent; transition:background 0.12s,color 0.12s; position:relative; }
+.icon-btn:hover { background:rgba(255,255,255,0.06); color:var(--text-mid); }
+.icon-btn.active { color:var(--text-bright); background:rgba(255,255,255,0.07); }
+.icon-btn.active::before { content:''; position:absolute; left:-1px; top:6px; bottom:6px; width:2px; border-radius:0 2px 2px 0; background:var(--accent); }
+.icon-bar-bottom { margin-top:auto; display:flex; flex-direction:column; align-items:center; gap:2px; }
+/* side panel */
+.side-panel { width:var(--panel-w); flex-shrink:0; background:var(--bg-panel); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; transition:width 0.18s ease; }
+.side-panel.collapsed { width:0; border-right:none; }
+.panel-title { font-size:10px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:var(--text-dim); padding:10px 14px 8px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.panel-body { flex:1; overflow-y:auto; padding:6px 0; }
+.panel-body::-webkit-scrollbar { width:4px; }
+.panel-body::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:2px; }
+.tree-folder { display:flex; align-items:center; gap:5px; padding:3px 14px; color:var(--text-dim); font-size:10px; letter-spacing:0.4px; cursor:pointer; user-select:none; }
+.tree-folder:hover { color:var(--text-mid); }
+.tree-arrow { font-size:8px; }
+.tree-item { display:flex; align-items:center; gap:6px; padding:3px 14px 3px 28px; font-size:11px; color:var(--text-mid); cursor:pointer; border-radius:4px; margin:0 4px; }
+.tree-item:hover { background:rgba(255,255,255,0.04); color:var(--text-bright); }
+.tree-item.active { background:rgba(99,102,241,0.12); color:var(--text-bright); }
+.tree-item-icon { width:13px; height:13px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:7px; font-weight:700; flex-shrink:0; }
+.tree-item-icon.formula { background:#6366f1; color:#fff; }
+.tree-item-icon.flow { background:#14b8a6; color:#fff; }
+.tree-item-icon.const { background:#f59e0b; color:#fff; }
+.tree-item-icon.dbtable { background:#f43f5e; color:#fff; }
+.tree-item-dirty { margin-left:auto; font-size:8px; color:var(--accent); flex-shrink:0; }
+.tree-item.orphan .tree-item-name { color:var(--text-dim); }
+/* main col */
+.main-col { flex:1; min-width:0; display:flex; flex-direction:column; overflow:hidden; }
+/* tab bar */
+.tab-bar { height:var(--tab-bar-h); flex-shrink:0; background:var(--bg-tab-bar); border-bottom:1px solid var(--border); display:flex; align-items:stretch; overflow-x:auto; overflow-y:hidden; }
+.tab-bar::-webkit-scrollbar { height:0; }
+.tab { display:flex; align-items:center; gap:5px; padding:0 12px; white-space:nowrap; cursor:pointer; font-size:11px; color:var(--text-dim); border-right:1px solid var(--border); background:transparent; min-width:120px; max-width:200px; position:relative; flex-shrink:0; user-select:none; transition:background 0.1s,color 0.1s; }
+.tab:hover { background:var(--bg-tab-hover); color:var(--text-mid); }
+.tab.active { background:var(--bg-tab-active); color:var(--text-bright); border-bottom:1px solid var(--bg-tab-active); margin-bottom:-1px; }
+.tab-dirty { font-size:9px; color:var(--accent); flex-shrink:0; }
+.tab-label { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.tab-type { font-size:8px; color:var(--text-dim); flex-shrink:0; }
+.tab-close { width:16px; height:16px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--text-dim); opacity:0; flex-shrink:0; cursor:pointer; transition:opacity 0.1s,background 0.1s; }
+.tab:hover .tab-close { opacity:1; }
+.tab-close:hover { background:rgba(255,255,255,0.1); color:var(--text-bright); }
+/* content */
+.content-area { flex:1; min-height:0; position:relative; overflow:hidden; background-image:radial-gradient(circle, var(--dot-color) var(--dot-size), transparent var(--dot-size)); background-size:var(--dot-spacing) var(--dot-spacing); }
+.canvas-label { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:rgba(255,255,255,0.06); font-size:11px; letter-spacing:1px; pointer-events:none; user-select:none; }
+.canvas-btns { position:absolute; top:14px; right:14px; display:flex; gap:6px; z-index:5; }
+.canvas-btn { height:28px; padding:0 10px; border-radius:6px; background:rgba(255,255,255,0.06); border:1px solid var(--border-strong); color:var(--text-mid); font-size:10px; font-family:inherit; font-weight:600; cursor:pointer; transition:background 0.12s,color 0.12s; }
+.canvas-btn:hover { background:rgba(255,255,255,0.1); color:var(--text-bright); }
+/* debug resize */
+.debug-resize { height:4px; flex-shrink:0; cursor:ns-resize; background:transparent; border-bottom:1px solid var(--border); transition:background 0.12s; }
+.debug-resize:hover { background:rgba(99,102,241,0.25); }
+/* debug panel */
+.debug-panel { flex-shrink:0; height:var(--debug-h); background:var(--bg-debug); border-top:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; transition:height 0.18s ease; }
+.debug-panel.collapsed { height:0; border-top:none; }
+.debug-bar { height:30px; flex-shrink:0; display:flex; align-items:stretch; border-bottom:1px solid var(--border); background:var(--bg-sidebar); }
+.debug-tab { display:flex; align-items:center; gap:5px; padding:0 14px; font-size:10px; font-weight:600; letter-spacing:0.4px; color:var(--text-dim); cursor:pointer; border-right:1px solid var(--border); transition:color 0.1s; }
+.debug-tab:hover { color:var(--text-mid); }
+.debug-tab.active { color:var(--text-bright); border-bottom:2px solid var(--accent); }
+.debug-tab-it { color:rgba(99,102,241,0.4); }
+.debug-tab-it.active { color:#a5b4fc; border-bottom-color:#6366f1; }
+.debug-tab-badge { font-size:9px; background:rgba(239,68,68,0.2); color:#f87171; padding:0 4px; border-radius:3px; font-weight:700; }
+.debug-body { flex:1; overflow-y:auto; padding:8px 14px; }
+.debug-body::-webkit-scrollbar { width:4px; }
+.debug-body::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:2px; }
+.problem-item { display:flex; align-items:flex-start; gap:8px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.04); cursor:pointer; font-size:10px; color:var(--text-mid); transition:color 0.1s; }
+.problem-item:hover { color:var(--text-bright); }
+.problem-icon { flex-shrink:0; margin-top:1px; font-size:10px; }
+.problem-icon.error { color:var(--error); }
+.problem-icon.warn { color:var(--warn); }
+.problem-source { color:var(--text-dim); flex-shrink:0; }
+.problem-msg { flex:1; }
+/* right panel */
+.right-panel { width:280px; flex-shrink:0; background:var(--bg-panel); border-left:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; position:relative; transition:width 0.18s ease; }
+.right-panel.collapsed { width:0; border-left:none; }
+.right-panel-header { height:35px; flex-shrink:0; display:flex; align-items:center; padding:0 12px; border-bottom:1px solid var(--border); gap:8px; }
+.right-panel-title { font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:var(--text-dim); flex:1; white-space:nowrap; }
+.right-panel-close { width:20px; height:20px; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--text-dim); cursor:pointer; border:none; background:transparent; transition:background 0.1s,color 0.1s; }
+.right-panel-close:hover { background:rgba(255,255,255,0.08); color:var(--text-bright); }
+.right-panel-body { flex:1; overflow-y:auto; padding:12px 14px; font-size:11px; color:var(--text-mid); }
+.right-panel-body::-webkit-scrollbar { width:4px; }
+.right-panel-body::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:2px; }
+.right-resize { position:absolute; top:0; bottom:0; left:0; width:4px; cursor:ew-resize; z-index:5; }
+.right-resize:hover { background:rgba(99,102,241,0.25); }
+.inspect-row { display:flex; align-items:center; gap:6px; padding:3px 0; cursor:pointer; }
+.inspect-row:hover { color:var(--text-bright); }
+.inspect-arrow { font-size:8px; color:var(--text-dim); width:10px; flex-shrink:0; }
+.inspect-icon { width:13px; height:13px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:7px; font-weight:700; color:#fff; flex-shrink:0; }
+.inspect-name { font-size:11px; flex:1; }
+.inspect-kind { font-size:9px; color:var(--text-dim); }
+.inspect-katex { padding:3px 0 3px 16px; font-size:10px; color:rgba(255,255,255,0.5); border-left:1px solid var(--border); margin:1px 0 4px 4px; }
+.inspect-value { padding:2px 0 2px 16px; font-size:10px; color:var(--type-fg); }
+/* status */
+.status-bar { height:22px; flex-shrink:0; background:var(--accent); display:flex; align-items:center; padding:0 10px; gap:16px; font-size:10px; color:rgba(255,255,255,0.85); }
+.status-item { display:flex; align-items:center; gap:4px; cursor:pointer; }
+.status-item:hover { color:#fff; }
+.status-bar-right { margin-left:auto; display:flex; gap:14px; }
+/* ===== NODE WRAPPER =====
+   .node-wrapper  position:absolute, left/topをここで指定
+     .node-actions  position:absolute top:-26px right:0
+     .mock-node     ノード本体
+   hoverは .node-wrapper 全体にかかるのでボタン↔ノード間でも途切れない
+*/
+.node-wrapper { position:absolute; cursor:grab; padding-top:26px; }
+.node-wrapper:active { cursor:grabbing; }
+.node-actions { position:absolute; top:0; right:0; display:flex; gap:3px; opacity:0; pointer-events:none; transition:opacity 0.12s; }
+.node-wrapper:hover .node-actions { opacity:1; pointer-events:all; }
+.node-action-btn { width:22px; height:22px; border-radius:5px; background:rgba(22,22,31,0.97); border:1px solid var(--border-strong); color:var(--text-mid); font-size:11px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:background 0.1s,color 0.1s,border-color 0.1s; }
+.node-action-btn:hover { background:rgba(99,102,241,0.3); border-color:rgba(99,102,241,0.6); color:#fff; }
+.mock-node { width:200px; border-radius:10px; filter:drop-shadow(0 6px 24px rgba(0,0,0,0.55)); opacity:0.85; }
+.mock-node-header { display:flex; align-items:center; gap:7px; padding:7px 11px; border-radius:10px 10px 0 0; border-bottom:1px solid rgba(255,255,255,0.07); }
+.mock-node-icon { width:15px; height:15px; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:700; color:#fff; flex-shrink:0; }
+.mock-node-name { font-size:11px; font-weight:600; letter-spacing:0.3px; }
+.mock-node-body { border-radius:0 0 10px 10px; background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.07); border-top:none; padding:8px 12px; min-height:44px; }
+.mock-port-row { display:flex; align-items:center; gap:4px; padding:2px 0; font-size:10px; color:rgba(255,255,255,0.75); }
+.mock-handle { width:9px; height:9px; border-radius:50%; border:1.5px solid rgba(255,255,255,0.25); background:#111118; flex-shrink:0; }
+.mock-badge { font-size:8px; font-weight:700; padding:1px 4px; border-radius:3px; background:var(--type-bg); color:var(--type-fg); }
+.mock-edge-layer { position:absolute; inset:0; pointer-events:none; }
+.debug-toggle-btn { position:absolute; bottom:14px; right:14px; z-index:5; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="menu-bar">
+    <span class="menu-title">formuflow</span>
+    <span class="menu-item">File</span>
+    <span class="menu-item">Edit</span>
+    <span class="menu-item" id="view-menu">View</span>
+    <span class="menu-item">Run</span>
+    <span class="menu-item">Help</span>
+  </div>
+
+  <div class="app">
+
+    <div class="icon-bar">
+      <button class="icon-btn active" id="btn-tree" title="Component Tree">⊟</button>
+      <button class="icon-btn" id="btn-search" title="Search">⌕</button>
+      <button class="icon-btn" id="btn-db" title="DB Connections">⊕</button>
+      <div class="icon-bar-bottom">
+        <button class="icon-btn" id="btn-settings" title="Settings">⚙</button>
+      </div>
+    </div>
+
+    <div class="side-panel" id="sidePanel">
+      <div class="panel-title" id="panelTitle">Component Tree</div>
+      <div class="panel-body">
+        <div class="tree-folder"><span class="tree-arrow">▼</span><span>builtin</span></div>
+        <div class="tree-folder" style="padding-left:28px;"><span class="tree-arrow">▶</span><span>math</span></div>
+        <div class="tree-folder" style="padding-left:28px;"><span class="tree-arrow">▶</span><span>sql</span></div>
+        <div class="tree-folder" style="margin-top:4px;"><span class="tree-arrow">▼</span><span>user</span></div>
+        <div class="tree-folder" style="padding-left:28px;"><span class="tree-arrow">▼</span><span>flows</span></div>
+        <div class="tree-item active" style="padding-left:42px;"><div class="tree-item-icon flow">⇢</div><span class="tree-item-name">GetIVChar</span><span class="tree-item-dirty">●</span></div>
+        <div class="tree-item" style="padding-left:42px;"><div class="tree-item-icon flow">⇢</div><span class="tree-item-name">CalcMotorGain</span></div>
+        <div class="tree-folder" style="padding-left:28px; margin-top:4px;"><span class="tree-arrow">▼</span><span>formulas</span></div>
+        <div class="tree-item" style="padding-left:42px;"><div class="tree-item-icon formula">fx</div><span class="tree-item-name">CalcGainBandwidth</span></div>
+        <div class="tree-item" style="padding-left:42px;"><div class="tree-item-icon formula">fx</div><span class="tree-item-name">FilterIV</span><span class="tree-item-dirty">●</span></div>
+        <div class="tree-item orphan" style="padding-left:42px;" title="どこからも参照されていない"><div class="tree-item-icon formula">fx</div><span class="tree-item-name">OldCalc</span></div>
+        <div class="tree-folder" style="padding-left:28px; margin-top:4px;"><span class="tree-arrow">▼</span><span>dbtables</span></div>
+        <div class="tree-item" style="padding-left:42px;"><div class="tree-item-icon dbtable">DB</div><span class="tree-item-name">transistor_iv_table</span></div>
+        <div class="tree-folder" style="padding-left:28px; margin-top:4px;"><span class="tree-arrow">▶</span><span>consts</span></div>
+      </div>
+    </div>
+
+    <div class="main-col">
+
+      <div class="tab-bar" id="tabBar">
+        <div class="tab active"><span class="tab-dirty">●</span><span class="tab-label">GetIVChar</span><span class="tab-type">flow</span><span class="tab-close">✕</span></div>
+        <div class="tab"><span class="tab-label">CalcGainBandwidth</span><span class="tab-type">formula</span><span class="tab-close">✕</span></div>
+        <div class="tab"><span class="tab-dirty">●</span><span class="tab-label">FilterIV</span><span class="tab-type">formula</span><span class="tab-close">✕</span></div>
+        <div class="tab"><span class="tab-label">transistor_iv_table</span><span class="tab-type">dbtable</span><span class="tab-close">✕</span></div>
+      </div>
+
+      <div class="content-area" id="contentArea">
+        <div class="canvas-label">flow canvas — /flows/get_iv_char</div>
+        <div class="canvas-btns">
+          <button class="canvas-btn">KaTeX</button>
+          <button class="canvas-btn">⊡</button>
+        </div>
+
+        <!-- DBTable node -->
+        <div class="node-wrapper" style="left:60px; top:94px;">
+          <div class="node-actions">
+            <button class="node-action-btn" data-action="inspect">👁</button>
+            <button class="node-action-btn" data-action="edit">✏</button>
+          </div>
+          <div class="mock-node">
+            <div class="mock-node-header" style="background:rgba(244,63,94,0.18);">
+              <div class="mock-node-icon" style="background:#f43f5e;">DB</div>
+              <span class="mock-node-name" style="color:#fda4af;">transistor_iv_table</span>
+            </div>
+            <div class="mock-node-body">
+              <div class="mock-port-row"><div class="mock-handle"></div><span class="mock-badge">Tbl</span>&nbsp;table</div>
+              <div class="mock-port-row"><div class="mock-handle"></div><span class="mock-badge">Ref</span>&nbsp;transistor_id</div>
+              <div class="mock-port-row"><div class="mock-handle"></div><span class="mock-badge">Ref</span>&nbsp;vgs</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Const node -->
+        <div class="node-wrapper" style="left:60px; top:304px;">
+          <div class="node-actions">
+            <button class="node-action-btn" data-action="inspect">👁</button>
+            <button class="node-action-btn" data-action="edit">✏</button>
+          </div>
+          <div class="mock-node">
+            <div class="mock-node-header" style="background:rgba(245,158,11,0.18);">
+              <div class="mock-node-icon" style="background:#f59e0b;">C</div>
+              <span class="mock-node-name" style="color:#fcd34d;">transistorId</span>
+            </div>
+            <div class="mock-node-body">
+              <div class="mock-port-row"><div class="mock-handle"></div><span class="mock-badge">Str</span>&nbsp;value</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Flow node (selected) -->
+        <div class="node-wrapper" style="left:360px; top:144px;">
+          <div class="node-actions">
+            <button class="node-action-btn" data-action="inspect">👁</button>
+            <button class="node-action-btn" data-action="edit">✏</button>
+          </div>
+          <div class="mock-node" style="outline:1.5px solid rgba(255,255,255,0.45); border-radius:10px;">
+            <div class="mock-node-header" style="background:rgba(20,184,166,0.18);">
+              <div class="mock-node-icon" style="background:#14b8a6;">⇢</div>
+              <span class="mock-node-name" style="color:#5eead4;">GetIVChar</span>
+            </div>
+            <div class="mock-node-body">
+              <div class="mock-port-row"><div class="mock-handle"></div><span class="mock-badge">Tbl</span>&nbsp;table</div>
+              <div class="mock-port-row"><div class="mock-handle"></div><span class="mock-badge">Ref</span>&nbsp;transistor_id</div>
+              <div class="mock-port-row"><div class="mock-handle"></div><span class="mock-badge">Str</span>&nbsp;targetId</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Formula node -->
+        <div class="node-wrapper" style="left:660px; top:174px;">
+          <div class="node-actions">
+            <button class="node-action-btn" data-action="inspect">👁</button>
+            <button class="node-action-btn" data-action="edit">✏</button>
+          </div>
+          <div class="mock-node">
+            <div class="mock-node-header" style="background:rgba(99,102,241,0.22);">
+              <div class="mock-node-icon" style="background:#6366f1;">fx</div>
+              <span class="mock-node-name" style="color:#a5b4fc;">CalcGainBandwidth</span>
+            </div>
+            <div class="mock-node-body">
+              <div class="mock-port-row"><div class="mock-handle"></div><span class="mock-badge">Col</span>&nbsp;ivChar</div>
+              <div class="mock-port-row"><div class="mock-handle"></div><span class="mock-badge">F64</span>&nbsp;vBias</div>
+            </div>
+          </div>
+        </div>
+
+        <svg class="mock-edge-layer" id="mockEdges"></svg>
+        <div class="debug-toggle-btn"><button class="canvas-btn" id="debugToggleBtn">⬛ Debug</button></div>
+      </div>
+
+      <div class="debug-resize" id="debugResize"></div>
+
+      <div class="debug-panel" id="debugPanel">
+        <div class="debug-bar">
+          <div class="debug-tab active">PROBLEMS <span class="debug-tab-badge">2</span></div>
+          <div class="debug-tab debug-tab-it" id="sqlTab" style="display:none;">SQL</div>
+          <div class="debug-tab debug-tab-it" id="irTab"  style="display:none;">IR</div>
+        </div>
+        <div class="debug-body">
+          <div class="problem-item"><span class="problem-icon error">✕</span><span class="problem-source">[Edge GetIVChar:ivChar — CalcGainBandwidth:ivChar]:</span><span class="problem-msg">&nbsp;type mismatch: Col → F64</span></div>
+          <div class="problem-item"><span class="problem-icon warn">⚠</span><span class="problem-source">[CalcGainBandwidth]:</span><span class="problem-msg">&nbsp;implicit cast F64 → I32 may lose precision</span></div>
+        </div>
+      </div>
+
+    </div><!-- main-col -->
+
+    <div class="right-panel collapsed" id="rightPanel">
+      <div class="right-resize" id="rightResize"></div>
+      <div class="right-panel-header">
+        <span class="right-panel-title" id="rightPanelTitle">Inspect</span>
+        <button class="right-panel-close" id="rightPanelClose">✕</button>
+      </div>
+      <div class="right-panel-body">
+        <div style="margin-bottom:12px; font-size:10px; color:var(--text-dim);">CalcGainBandwidth</div>
+        <div style="padding:6px 10px; background:rgba(255,255,255,0.03); border-radius:6px; margin-bottom:10px; font-size:10px; color:rgba(255,255,255,0.5);">= g<sub>m</sub> · 1/2πC</div>
+        <div class="inspect-row"><span class="inspect-arrow">▼</span><div class="inspect-icon" style="background:#6366f1;">fx</div><span class="inspect-name">gm</span><span class="inspect-kind">Formula</span></div>
+        <div class="inspect-katex">= I<sub>ds</sub> / V<sub>gs</sub></div>
+        <div class="inspect-row" style="padding-left:14px;"><span class="inspect-arrow">▶</span><div class="inspect-icon" style="background:#6366f1;">fx</div><span class="inspect-name">Ids</span><span class="inspect-kind">Formula</span></div>
+        <div class="inspect-row" style="padding-left:14px;"><span class="inspect-arrow">▼</span><div class="inspect-icon" style="background:#f59e0b;">C</div><span class="inspect-name">Vgs</span><span class="inspect-kind">Consts</span></div>
+        <div class="inspect-value" style="padding-left:30px;">Vgs = 3.3</div>
+        <div class="inspect-row" style="margin-top:4px;"><span class="inspect-arrow" style="visibility:hidden;"></span><div class="inspect-icon" style="background:#f59e0b;">C</div><span class="inspect-name">Vth</span><span class="inspect-kind">Const</span></div>
+        <div class="inspect-value" style="padding-left:16px;">0.7</div>
+      </div>
+    </div>
+
+  </div><!-- app -->
+
+  <div class="status-bar">
+    <span class="status-item">⊟ formuflow</span>
+    <span class="status-item">⎇ main</span>
+    <div class="status-bar-right">
+      <span class="status-item">2 problems</span>
+      <span class="status-item">DuckDB ✓</span>
+      <span class="status-item">UTF-8</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// icon bar
+const sidePanel = document.getElementById('sidePanel');
+const panelTitle = document.getElementById('panelTitle');
+const labels = { 'btn-tree':'Component Tree', 'btn-search':'Search', 'btn-db':'DB Connections', 'btn-settings':'Settings' };
+let activeIcon = 'btn-tree';
+document.querySelectorAll('.icon-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.id === activeIcon) { sidePanel.classList.add('collapsed'); btn.classList.remove('active'); activeIcon = null; }
+    else { sidePanel.classList.remove('collapsed'); document.querySelectorAll('.icon-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); activeIcon = btn.id; if (labels[btn.id]) panelTitle.textContent = labels[btn.id]; }
+  });
+});
+
+// tabs
+document.getElementById('tabBar').addEventListener('click', e => {
+  const tab = e.target.closest('.tab'); if (!tab) return;
+  if (e.target.classList.contains('tab-close')) { tab.remove(); return; }
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+});
+
+// debug toggle
+const debugPanel = document.getElementById('debugPanel');
+const debugResize = document.getElementById('debugResize');
+let debugOpen = true;
+document.getElementById('debugToggleBtn').addEventListener('click', () => {
+  debugOpen = !debugOpen;
+  debugPanel.classList.toggle('collapsed', !debugOpen);
+  debugResize.style.display = debugOpen ? '' : 'none';
+  document.getElementById('debugToggleBtn').textContent = debugOpen ? '⬛ Debug' : '□ Debug';
+});
+document.querySelectorAll('.debug-tab').forEach(tab => {
+  tab.addEventListener('click', () => { document.querySelectorAll('.debug-tab').forEach(t => t.classList.remove('active')); tab.classList.add('active'); });
+});
+
+// View → Show Debug
+let showDebug = false;
+document.getElementById('view-menu').addEventListener('click', () => {
+  showDebug = !showDebug;
+  document.getElementById('sqlTab').style.display = showDebug ? '' : 'none';
+  document.getElementById('irTab').style.display  = showDebug ? '' : 'none';
+});
+
+// debug resize
+let dbR = false, dbY = 0, dbH = 0;
+debugResize.addEventListener('mousedown', e => { dbR=true; dbY=e.clientY; dbH=debugPanel.offsetHeight; e.preventDefault(); });
+document.addEventListener('mousemove', e => { if (!dbR) return; debugPanel.style.height = Math.max(80, Math.min(500, dbH-(e.clientY-dbY))) + 'px'; });
+document.addEventListener('mouseup', () => { dbR=false; });
+
+// side panel resize
+let spR = false, spX = 0, spW = 0;
+sidePanel.addEventListener('mousedown', e => { if (e.offsetX > sidePanel.offsetWidth-6) { spR=true; spX=e.clientX; spW=sidePanel.offsetWidth; e.preventDefault(); } });
+document.addEventListener('mousemove', e => { if (!spR) return; sidePanel.style.width = Math.max(160, Math.min(480, spW+(e.clientX-spX))) + 'px'; });
+document.addEventListener('mouseup', () => { spR=false; });
+
+// right panel
+const rightPanel = document.getElementById('rightPanel');
+const rightPanelTitle = document.getElementById('rightPanelTitle');
+function openRightPanel(title) { rightPanelTitle.textContent = title; rightPanel.classList.remove('collapsed'); }
+function closeRightPanel() { rightPanel.classList.add('collapsed'); }
+document.getElementById('rightPanelClose').addEventListener('click', closeRightPanel);
+
+// right panel resize
+let rpR = false, rpX = 0, rpW = 0;
+document.getElementById('rightResize').addEventListener('mousedown', e => { rpR=true; rpX=e.clientX; rpW=rightPanel.offsetWidth; e.preventDefault(); });
+document.addEventListener('mousemove', e => { if (!rpR) return; rightPanel.style.width = Math.max(180, Math.min(560, rpW-(e.clientX-rpX))) + 'px'; });
+document.addEventListener('mouseup', () => { rpR=false; });
+
+// node action buttons
+document.querySelectorAll('.node-action-btn').forEach(btn => {
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (btn.dataset.action === 'inspect') {
+      if (!rightPanel.classList.contains('collapsed')) { closeRightPanel(); return; }
+      openRightPanel('Formula Inspect');
+    } else if (btn.dataset.action === 'edit') {
+      const tabBar = document.getElementById('tabBar');
+      if (!tabBar.querySelector('[data-tab="edit-new"]')) {
+        const tab = document.createElement('div');
+        tab.className = 'tab active'; tab.dataset.tab = 'edit-new';
+        tab.innerHTML = '<span class="tab-label">CalcGainBandwidth</span><span class="tab-type">formula</span><span class="tab-close">✕</span>';
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tabBar.appendChild(tab);
+      }
+    }
+  });
+});
+
+// mock edges
+const svg = document.getElementById('mockEdges');
+function drawEdge(x1,y1,x2,y2,color) {
+  const dx=Math.abs(x2-x1)*0.5, p=document.createElementNS('http://www.w3.org/2000/svg','path');
+  p.setAttribute('d',`M ${x1},${y1} C ${x1+dx},${y1} ${x2-dx},${y2} ${x2},${y2}`);
+  p.setAttribute('fill','none'); p.setAttribute('stroke',color); p.setAttribute('stroke-width','1.5'); p.setAttribute('opacity','0.6');
+  svg.appendChild(p);
+}
+function drawMockEdges() {
+  svg.innerHTML='';
+  const ca=document.getElementById('contentArea').getBoundingClientRect();
+  svg.setAttribute('width',ca.width); svg.setAttribute('height',ca.height); svg.setAttribute('viewBox',`0 0 ${ca.width} ${ca.height}`);
+  drawEdge(260,147,360,188,'#9ca3af'); drawEdge(260,162,360,203,'#9ca3af');
+  drawEdge(260,347,360,218,'#9ca3af'); drawEdge(560,203,660,225,'#ef4444');
+}
+window.addEventListener('resize', drawMockEdges);
+requestAnimationFrame(drawMockEdges);
+</script>
+</body>
+</html>
