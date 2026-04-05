@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>05a — タブバー</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:           #111118;
+    --bg-panel:     #16161f;
+    --bg-tab:       #1e1e2a;
+    --bg-tab-active:#111118;
+    --border:       rgba(255,255,255,0.08);
+    --text:         #cdd6f4;
+    --text-dim:     #6c7086;
+    --text-muted:   #45475a;
+    --accent:       #6366f1;
+    --accent-text:  #a5b4fc;
+    --unsaved:      #6366f1;
+    --close-hover:  rgba(255,255,255,0.12);
+    --tab-h:        35px;
+  }
+
+  body {
+    background: #0d0d14;
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 48px;
+  }
+
+  h2 {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+
+  /* ── タブバー共通 ── */
+  .tabbar-wrap {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .tabbar {
+    display: flex;
+    height: var(--tab-h);
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    flex-shrink: 0;
+  }
+  .tabbar::-webkit-scrollbar { display: none; }
+
+  .tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px 0 12px;
+    height: var(--tab-h);
+    min-width: 80px;
+    max-width: 180px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    cursor: pointer;
+    color: var(--text-dim);
+    position: relative;
+    transition: color 0.12s, background 0.12s;
+    user-select: none;
+  }
+  .tab:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+
+  .tab.active {
+    background: var(--bg-tab-active);
+    color: var(--text);
+    border-bottom: 1px solid var(--bg-tab-active);
+    margin-bottom: -1px;
+    z-index: 1;
+  }
+  .tab.active::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: var(--accent);
+  }
+
+  .tab-icon {
+    font-size: 11px;
+    opacity: 0.6;
+    flex-shrink: 0;
+  }
+  .tab.active .tab-icon { opacity: 0.9; }
+
+  .tab-unsaved {
+    color: var(--unsaved);
+    font-size: 10px;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
+  .tab-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+
+  .tab-close {
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    line-height: 1;
+    color: var(--text-dim);
+    opacity: 0;
+    flex-shrink: 0;
+    transition: opacity 0.1s, background 0.1s;
+  }
+  .tab:hover .tab-close,
+  .tab.active .tab-close { opacity: 1; }
+  .tab-close:hover { background: var(--close-hover); color: var(--text); }
+
+  /* ── タブアイコン色 ── */
+  .icon-flow   { color: #14b8a6; }
+  .icon-formula{ color: #6366f1; }
+  .icon-const  { color: #f59e0b; }
+  .icon-db     { color: #f43f5e; }
+  .icon-input  { color: #06b6d4; }
+
+  /* ── コンテンツエリア（プレースホルダー） ── */
+  .tab-content {
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+  }
+
+  /* ── 注釈ラベル ── */
+  .annotation {
+    display: flex;
+    gap: 24px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .ann-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .ann-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+  }
+  .dot-active  { background: var(--accent); }
+  .dot-unsaved { background: var(--unsaved); }
+  .dot-hover   { background: rgba(255,255,255,0.25); }
+</style>
+</head>
+<body>
+
+<!-- ① 基本状態 -->
+<section>
+  <h2>① 基本状態 — 4タブ、アクティブ1枚、未保存●あり</h2>
+  <div class="tabbar-wrap">
+    <div class="tabbar">
+      <div class="tab active">
+        <span class="tab-icon icon-flow">⇢</span>
+        <span class="tab-title">GetIVChar</span>
+        <span class="tab-close">×</span>
+      </div>
+      <div class="tab">
+        <span class="tab-unsaved">●</span>
+        <span class="tab-icon icon-formula">fx</span>
+        <span class="tab-title">CalcGainBandwidth</span>
+        <span class="tab-close">×</span>
+      </div>
+      <div class="tab">
+        <span class="tab-icon icon-db">DB</span>
+        <span class="tab-title">transistor_iv_table</span>
+        <span class="tab-close">×</span>
+      </div>
+      <div class="tab">
+        <span class="tab-icon icon-const">C</span>
+        <span class="tab-title">Vth</span>
+        <span class="tab-close">×</span>
+      </div>
+    </div>
+    <div class="tab-content">GetIVChar — Flowキャンバス</div>
+  </div>
+  <div class="annotation">
+    <div class="ann-item"><div class="ann-dot dot-active"></div>上端インジケータ = アクティブタブ</div>
+    <div class="ann-item"><div class="ann-dot dot-unsaved"></div>● = 未保存 (draft)</div>
+    <div class="ann-item"><div class="ann-dot dot-hover"></div>× = hover時に表示</div>
+  </div>
+</section>
+
+<!-- ② タブ溢れ状態（横スクロール） -->
+<section>
+  <h2>② タブ溢れ — 横スクロール発生、アクティブタブは常に見える</h2>
+  <div class="tabbar-wrap" style="max-width: 640px;">
+    <div class="tabbar">
+      <div class="tab">
+        <span class="tab-icon icon-flow">⇢</span>
+        <span class="tab-title">GetIVChar</span>
+        <span class="tab-close">×</span>
+      </div>
+      <div class="tab">
+        <span class="tab-icon icon-flow">⇢</span>
+        <span class="tab-title">CalcTransistorGain</span>
+        <span class="tab-close">×</span>
+      </div>
+      <div class="tab">
+        <span class="tab-unsaved">●</span>
+        <span class="tab-icon icon-formula">fx</span>
+        <span class="tab-title">CalcGainBandwidth</span>
+        <span class="tab-close">×</span>
+      </div>
+      <div class="tab">
+        <span class="tab-icon icon-formula">fx</span>
+        <span class="tab-title">FilterIV</span>
+        <span class="tab-close">×</span>
+      </div>
+      <div class="tab active">
+        <span class="tab-icon icon-db">DB</span>
+        <span class="tab-title">transistor_iv_table</span>
+        <span class="tab-close">×</span>
+      </div>
+      <div class="tab">
+        <span class="tab-icon icon-const">C</span>
+        <span class="tab-title">Vth</span>
+        <span class="tab-close">×</span>
+      </div>
+      <div class="tab">
+        <span class="tab-icon icon-const">C</span>
+        <span class="tab-title">TransistorParams</span>
+        <span class="tab-close">×</span>
+      </div>
+      <div class="tab">
+        <span class="tab-icon icon-input">▶</span>
+        <span class="tab-title">MotorInput</span>
+        <span class="tab-close">×</span>
+      </div>
+    </div>
+    <div class="tab-content">transistor_iv_table — DatabaseTable設定</div>
+  </div>
+  <div class="annotation">
+    <div class="ann-item" style="color: var(--text-dim); font-size:11px;">
+      ← スクロール可。アクティブタブ（transistor_iv_table）はスクロール位置が自動調整され常に表示される
+    </div>
+  </div>
+</section>
+
+<!-- ③ hover状態 -->
+<section>
+  <h2>③ hover状態 — × ボタン表示</h2>
+  <div class="tabbar-wrap" style="max-width: 480px;">
+    <div class="tabbar">
+      <div class="tab active">
+        <span class="tab-icon icon-flow">⇢</span>
+        <span class="tab-title">GetIVChar</span>
+        <span class="tab-close" style="opacity:1; background: rgba(255,255,255,0.12);">×</span>
+      </div>
+      <div class="tab" style="background: rgba(255,255,255,0.04); color: var(--text);">
+        <span class="tab-unsaved">●</span>
+        <span class="tab-icon icon-formula">fx</span>
+        <span class="tab-title">CalcGainBandwidth</span>
+        <span class="tab-close" style="opacity:1;">×</span>
+      </div>
+      <div class="tab">
+        <span class="tab-icon icon-const">C</span>
+        <span class="tab-title">Vth</span>
+        <span class="tab-close">×</span>
+      </div>
+    </div>
+    <div class="tab-content">GetIVChar — Flowキャンバス</div>
+  </div>
+  <div class="annotation">
+    <div class="ann-item" style="color: var(--text-dim); font-size:11px;">
+      hover中タブ（CalcGainBandwidth）: 背景が薄く明るくなり、× が表示される
+    </div>
+  </div>
+</section>
+
+<!-- ④ タイトル省略 -->
+<section>
+  <h2>④ タイトル省略 — タブ幅が狭くなるとellipsisで切れる</h2>
+  <div class="tabbar-wrap" style="max-width: 400px;">
+    <div class="tabbar">
+      <div class="tab active" style="min-width:80px;">
+        <span class="tab-icon icon-flow">⇢</span>
+        <span class="tab-title">GetIVCharByTransistorId</span>
+        <span class="tab-close" style="opacity:1;">×</span>
+      </div>
+      <div class="tab" style="min-width:80px;">
+        <span class="tab-icon icon-formula">fx</span>
+        <span class="tab-title">CalcGainBandwidth</span>
+        <span class="tab-close">×</span>
+      </div>
+      <div class="tab" style="min-width:80px;">
+        <span class="tab-unsaved">●</span>
+        <span class="tab-icon icon-const">C</span>
+        <span class="tab-title">TransistorParams</span>
+        <span class="tab-close">×</span>
+      </div>
+    </div>
+    <div class="tab-content">GetIVCharByTransistorId — Flowキャンバス</div>
+  </div>
+  <div class="annotation">
+    <div class="ann-item" style="color: var(--text-dim); font-size:11px;">
+      タブ幅が足りない場合は text-overflow: ellipsis で省略
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

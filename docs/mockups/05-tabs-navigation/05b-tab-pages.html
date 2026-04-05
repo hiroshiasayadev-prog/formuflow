@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>05b — タブページシェル</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:            #111118;
+    --bg-panel:      #16161f;
+    --bg-tab:        #1e1e2a;
+    --border:        rgba(255,255,255,0.08);
+    --text:          #cdd6f4;
+    --text-dim:      #6c7086;
+    --text-muted:    #45475a;
+    --accent:        #6366f1;
+    --accent-text:   #a5b4fc;
+    --unsaved:       #6366f1;
+    --tab-h:         35px;
+
+    --col-formula:   #6366f1;
+    --col-flow:      #14b8a6;
+    --col-const:     #f59e0b;
+    --col-db:        #f43f5e;
+    --col-input:     #06b6d4;
+  }
+
+  body {
+    background: #0d0d14;
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 56px;
+  }
+
+  h2 {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+
+  /* ── シェル全体 ── */
+  .shell {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--bg-panel);
+    width: 720px;
+  }
+
+  /* ── タブバー ── */
+  .tabbar {
+    display: flex;
+    height: var(--tab-h);
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabbar::-webkit-scrollbar { display: none; }
+
+  .tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px 0 12px;
+    height: var(--tab-h);
+    min-width: 80px;
+    max-width: 180px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    cursor: pointer;
+    color: var(--text-dim);
+    position: relative;
+    user-select: none;
+  }
+  .tab.active {
+    background: var(--bg);
+    color: var(--text);
+    border-bottom: 1px solid var(--bg);
+    margin-bottom: -1px;
+    z-index: 1;
+  }
+  .tab.active::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+  }
+  .tab-unsaved { color: var(--unsaved); font-size: 10px; flex-shrink: 0; }
+  .tab-icon    { font-size: 11px; opacity: 0.7; flex-shrink: 0; }
+  .tab.active .tab-icon { opacity: 1; }
+  .tab-title   { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tab-close   {
+    width: 18px; height: 18px; border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: var(--text-dim); opacity: 0; flex-shrink: 0;
+  }
+  .tab:hover .tab-close,
+  .tab.active .tab-close { opacity: 1; }
+
+  /* アクセントカラー別のトップライン */
+  .tab.active.c-flow::before    { background: var(--col-flow); }
+  .tab.active.c-formula::before { background: var(--col-formula); }
+  .tab.active.c-const::before   { background: var(--col-const); }
+  .tab.active.c-db::before      { background: var(--col-db); }
+  .tab.active.c-input::before   { background: var(--col-input); }
+
+  /* ── ページ本体 ── */
+  .page {
+    background: var(--bg);
+    padding: 24px 28px;
+    min-height: 220px;
+  }
+
+  /* ── ページヘッダー ── */
+  .page-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .page-icon {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .page-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .page-path {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: auto;
+    font-family: monospace;
+  }
+
+  /* ── フィールド共通 ── */
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .field-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .field-value {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 7px 10px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: monospace;
+  }
+  .field-value.placeholder { color: var(--text-muted); font-style: italic; font-family: inherit; }
+
+  /* ── テーブル ── */
+  .field-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .field-table th {
+    text-align: left;
+    padding: 5px 10px;
+    color: var(--text-dim);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+  }
+  .field-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    color: var(--text);
+  }
+  .field-table tr:last-child td { border-bottom: none; }
+  .badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-family: monospace;
+    color: #4ade80;
+    background: rgba(74,222,128,0.12);
+  }
+
+  /* ── キャンバスプレースホルダー ── */
+  .canvas-placeholder {
+    background: var(--bg);
+    border: 1.5px dashed rgba(255,255,255,0.08);
+    border-radius: 6px;
+    height: 160px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+  .canvas-placeholder .icon {
+    font-size: 24px;
+    opacity: 0.3;
+  }
+
+  /* ── Formula editor ── */
+  .formula-editor {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    font-family: 'Consolas', 'Fira Code', monospace;
+    font-size: 13px;
+    color: var(--accent-text);
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+  }
+  .formula-cursor {
+    display: inline-block;
+    width: 1px;
+    height: 14px;
+    background: var(--accent-text);
+    margin-left: 2px;
+    animation: blink 1s step-end infinite;
+    vertical-align: middle;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ── 行レイアウト ── */
+  .row { display: flex; gap: 20px; }
+  .col { flex: 1; }
+
+  /* ── 注釈 ── */
+  .note {
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<!-- ① Flow キャンバス -->
+<section>
+  <h2>① /flows/:id — Flowキャンバス</h2>
+  <div class="shell">
+    <div class="tabbar">
+      <div class="tab active c-flow">
+        <span class="tab-icon" style="color:var(--col-flow)">⇢</span>
+        <span class="tab-title">GetIVChar</span>
+        <span class="tab-close">×</span>
+      </div>
+      <div class="tab">
+        <span class="tab-unsaved">●</span>
+        <span class="tab-icon" style="color:var(--col-formula)">fx</span>
+        <span class="tab-title">CalcGainBandwidth</span>
+        <span class="tab-close">×</span>
+      </div>
+    </div>
+    <div class="page">
+      <div class="page-header">
+        <div class="page-icon" style="background:rgba(20,184,166,0.18); color:var(--col-flow)">⇢</div>
+        <span class="page-title">GetIVChar</span>
+        <span class="page-path">/flows/get_iv_char</span>
+      </div>
+      <div class="canvas-placeholder">
+        <div class="icon">⇢</div>
+        <div>Flowキャンバス — ReactFlow描画エリア</div>
+        <div style="font-size:11px; opacity:0.6">ノード・エッジは 02-flow-canvas.html 参照</div>
+      </div>
+    </div>
+  </div>
+  <p class="note">キャンバス本体の仕様は 02-flow-canvas.html に分離。このページはタブ+ヘッダーのシェルのみ定義する。</p>
+</section>
+
+<!-- ② Formula 編集 -->
+<section>
+  <h2>② /formulas/:id — Formula編集</h2>
+  <div class="shell">
+    <div class="tabbar">
+      <div class="tab c-flow">
+        <span class="tab-icon" style="color:var(--col-flow)">⇢</span>
+        <span class="tab-title">GetIVChar</span>
+        <span class="tab-close">×</span>
+      </div>
+      <div class="tab active c-formula">
+        <span class="tab-unsaved">●</span>
+        <span class="tab-icon" style="color:var(--col-formula)">fx</span>
+        <span class="tab-title">CalcGainBandwidth</span>
+        <span class="tab-close">×</span>
+      </div>
+    </div>
+    <div class="page">
+      <div class="page-header">
+        <div class="page-icon" style="background:rgba(99,102,241,0.2); color:var(--col-formula)">fx</div>
+        <span class="page-title" style="color:var(--accent-text)">CalcGainBandwidth</span>
+        <span class="page-path">/formulas/calc_gain_bandwidth</span>
+      </div>
+      <div class="row">
+        <div class="col">
+          <div class="field-group">
+            <div class="field">
+              <div class="field-label">式 (Formula)</div>
+              <div class="formula-editor">ivChar + vBias / gain<span class="formula-cursor"></span></div>
+            </div>
+            <div class="field">
+              <div class="field-label">引数 (Inputs)</div>
+              <table class="field-table">
+                <thead>
+                  <tr><th>変数名</th><th>型</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>ivChar</td><td><span class="badge">Col</span></td></tr>
+                  <tr><td>vBias</td><td><span class="badge">F64</span></td></tr>
+                  <tr><td>gain</td><td><span class="badge">F64</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="col" style="max-width: 200px;">
+          <div class="field">
+            <div class="field-label">出力型</div>
+            <div class="field-value"><span class="badge">F64</span></div>
+          </div>
+          <div class="field" style="margin-top:14px;">
+            <div class="field-label">KaTeX プレビュー</div>
+            <div class="field-value" style="font-style:italic; color:var(--text-dim);">
+              ivChar + vBias / gain
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="note">詳細仕様は 06-formula-editor.md。ここではタブ+ヘッダー+フィールド構成のシェルのみ確認する。</p>
+</section>
+
+<!-- ③ Const -->
+<section>
+  <h2>③ /consts/:id — Const設定</h2>
+  <div class="shell">
+    <div class="tabbar">
+      <div class="tab active c-const">
+        <span class="tab-icon" style="color:var(--col-const)">C</span>
+        <span class="tab-title">Vth</span>
+        <span class="tab-close">×</span>
+      </div>
+    </div>
+    <div class="page">
+      <div class="page-header">
+        <div class="page-icon" style="background:rgba(245,158,11,0.18); color:var(--col-const)">C</div>
+        <span class="page-title" style="color:#fcd34d">Vth</span>
+        <span class="page-path">/consts/vth</span>
+      </div>
+      <div class="field-group" style="max-width:360px;">
+        <div class="field">
+          <div class="field-label">変数名</div>
+          <div class="field-value">Vth</div>
+        </div>
+        <div class="field">
+          <div class="field-label">型</div>
+          <div class="field-value"><span class="badge">F64</span></div>
+        </div>
+        <div class="field">
+          <div class="field-label">値</div>
+          <div class="field-value">0.7</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ④ Consts -->
+<section>
+  <h2>④ /consts-map/:id — Consts設定（Key-Value複数）</h2>
+  <div class="shell">
+    <div class="tabbar">
+      <div class="tab active c-const">
+        <span class="tab-icon" style="color:var(--col-const)">C</span>
+        <span class="tab-title">TransistorParams</span>
+        <span class="tab-close">×</span>
+      </div>
+    </div>
+    <div class="page">
+      <div class="page-header">
+        <div class="page-icon" style="background:rgba(245,158,11,0.18); color:var(--col-const)">C</div>
+        <span class="page-title" style="color:#fcd34d">TransistorParams</span>
+        <span class="page-path">/consts-map/transistor_params</span>
+      </div>
+      <div class="field">
+        <div class="field-label">エントリ一覧</div>
+        <table class="field-table" style="margin-top:6px;">
+          <thead>
+            <tr><th>変数名</th><th>型</th><th>値</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Vth</td><td><span class="badge">F64</span></td><td>0.7</td></tr>
+            <tr><td>Vsat</td><td><span class="badge">F64</span></td><td>1.2</td></tr>
+            <tr><td>mu</td><td><span class="badge">F64</span></td><td>450.0</td></tr>
+            <tr>
+              <td colspan="3" style="color:var(--text-muted); font-style:italic; text-align:center; padding: 8px;">
+                + エントリを追加
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ⑤ DatabaseTable -->
+<section>
+  <h2>⑤ /dbtables/:id — DatabaseTable設定</h2>
+  <div class="shell">
+    <div class="tabbar">
+      <div class="tab active c-db">
+        <span class="tab-icon" style="color:var(--col-db)">DB</span>
+        <span class="tab-title">transistor_iv_table</span>
+        <span class="tab-close">×</span>
+      </div>
+    </div>
+    <div class="page">
+      <div class="page-header">
+        <div class="page-icon" style="background:rgba(244,63,94,0.18); color:var(--col-db)">DB</div>
+        <span class="page-title" style="color:#fda4af">transistor_iv_table</span>
+        <span class="page-path">/dbtables/transistor_iv_table</span>
+      </div>
+      <div class="row">
+        <div class="col">
+          <div class="field-group">
+            <div class="field">
+              <div class="field-label">DB接続</div>
+              <div class="field-value">production / transistor_db</div>
+            </div>
+            <div class="field">
+              <div class="field-label">テーブル名</div>
+              <div class="field-value">transistor_iv_table</div>
+            </div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="field">
+            <div class="field-label">スキーマプレビュー</div>
+            <table class="field-table" style="margin-top:6px;">
+              <thead>
+                <tr><th>列名</th><th>型</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>transistor_id</td><td><span class="badge">I32</span></td></tr>
+                <tr><td>vgs</td><td><span class="badge">F64</span></td></tr>
+                <tr><td>vds</td><td><span class="badge">F64</span></td></tr>
+                <tr><td>ids</td><td><span class="badge">F64</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ⑥ DefaultInput -->
+<section>
+  <h2>⑥ /inputs/:id — DefaultInput設定</h2>
+  <div class="shell">
+    <div class="tabbar">
+      <div class="tab active c-input">
+        <span class="tab-icon" style="color:var(--col-input)">▶</span>
+        <span class="tab-title">TransistorInput</span>
+        <span class="tab-close">×</span>
+      </div>
+    </div>
+    <div class="page">
+      <div class="page-header">
+        <div class="page-icon" style="background:rgba(6,182,212,0.18); color:var(--col-input)">▶</div>
+        <span class="page-title" style="color:#67e8f9">TransistorInput</span>
+        <span class="page-path">/inputs/transistor_input</span>
+      </div>
+
+      <!-- 2タブ構成 -->
+      <div style="display:flex; gap:0; border-bottom:1px solid var(--border); margin-bottom:18px;">
+        <div style="padding:6px 16px; font-size:12px; color:var(--text); border-bottom:2px solid var(--accent); margin-bottom:-1px; cursor:pointer;">定義</div>
+        <div style="padding:6px 16px; font-size:12px; color:var(--text-dim); cursor:pointer;">テスト</div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">引数定義</div>
+        <table class="field-table" style="margin-top:6px;">
+          <thead>
+            <tr><th>引数名</th><th>型</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>transistorId</td><td><span class="badge">I32</span></td></tr>
+            <tr><td>vBias</td><td><span class="badge">F64</span></td></tr>
+            <tr>
+              <td colspan="2" style="color:var(--text-muted); font-style:italic; text-align:center; padding:8px;">
+                + 引数を追加
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <p class="note">DefaultInputは他Flowから再利用可能。定義タブ（引数名・型）+ テストタブ（テストケース・実行）の2タブ構成。詳細は 09-default-input.md。</p>
+</section>
+
+</body>
+</html>
