@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>formuflow — 04a Sidebar: Component Tree</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-base: #111118;
+    --bg-sidebar: #16161f;
+    --bg-panel: #1a1a26;
+    --bg-hover: rgba(255,255,255,0.05);
+    --bg-active: rgba(255,255,255,0.08);
+    --bg-selected: rgba(99,102,241,0.18);
+
+    --text-primary: #d4d4dc;
+    --text-secondary: #8888a0;
+    --text-muted: #555568;
+    --text-orphan: #555568;
+
+    --accent: #6366f1;
+    --accent-light: #a5b4fc;
+    --green: #4ade80;
+    --amber: #f59e0b;
+    --rose: #f43f5e;
+    --teal: #14b8a6;
+    --cyan: #06b6d4;
+
+    --border: rgba(255,255,255,0.07);
+    --border-subtle: rgba(255,255,255,0.04);
+
+    --icon-bar-width: 48px;
+    --panel-width: 260px;
+  }
+
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: 'Menlo', 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Menu bar ── */
+  .menubar {
+    height: 30px;
+    background: #0e0e16;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 20px;
+    flex-shrink: 0;
+    z-index: 100;
+  }
+  .menubar-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-light);
+    letter-spacing: 0.05em;
+    margin-right: 4px;
+  }
+  .menubar-item {
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+  .menubar-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+  /* ── App body ── */
+  .app-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ── Icon bar ── */
+  .icon-bar {
+    width: var(--icon-bar-width);
+    background: #0e0e16;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 4px 0;
+    flex-shrink: 0;
+    z-index: 50;
+  }
+  .icon-bar-top { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; }
+  .icon-bar-bottom { display: flex; flex-direction: column; align-items: center; gap: 2px; padding-bottom: 4px; }
+
+  .icon-btn {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 16px;
+    position: relative;
+    transition: color 0.12s, background 0.12s;
+    border: none;
+    background: transparent;
+  }
+  .icon-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+  .icon-btn.active {
+    color: var(--text-primary);
+  }
+  .icon-btn.active::before {
+    content: '';
+    position: absolute;
+    left: -4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 2px;
+    height: 20px;
+    background: var(--accent);
+    border-radius: 0 2px 2px 0;
+  }
+
+  /* ── Side panel ── */
+  .side-panel {
+    width: var(--panel-width);
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  /* Section */
+  .tree-section { display: flex; flex-direction: column; overflow: hidden; }
+  .tree-section + .tree-section { border-top: 1px solid var(--border); }
+  .tree-section.collapsed .tree-section-body { display: none; }
+
+  .tree-section-header {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    cursor: pointer;
+    flex-shrink: 0;
+    position: relative;
+    user-select: none;
+  }
+  .tree-section-header:hover .section-actions { opacity: 1; }
+  .section-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    flex: 1;
+  }
+  .section-chevron {
+    font-size: 9px;
+    color: var(--text-muted);
+    margin-right: 6px;
+    transition: transform 0.15s;
+  }
+  .tree-section.collapsed .section-chevron { transform: rotate(-90deg); }
+
+  .section-actions {
+    display: flex;
+    gap: 1px;
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+  .section-action-btn {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 13px;
+    border: none;
+    background: transparent;
+  }
+  .section-action-btn:hover { background: var(--bg-active); color: var(--text-primary); }
+
+  .tree-section-body {
+    overflow-y: auto;
+    flex: 1;
+    padding: 2px 0;
+  }
+
+  /* Tree rows */
+  .tree-row {
+    display: flex;
+    align-items: center;
+    height: 22px;
+    padding-right: 8px;
+    cursor: pointer;
+    border-radius: 0;
+    position: relative;
+    user-select: none;
+  }
+  .tree-row:hover { background: var(--bg-hover); }
+  .tree-row.selected { background: var(--bg-selected); }
+  .tree-row.active-tab { background: var(--bg-active); }
+
+  .tree-indent { flex-shrink: 0; }
+  .tree-chevron {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 9px;
+    color: var(--text-muted);
+    transition: transform 0.12s;
+  }
+  .tree-chevron.open { transform: rotate(90deg); }
+  .tree-chevron.leaf { opacity: 0; }
+
+  .tree-icon {
+    width: 18px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 700;
+    margin-right: 5px;
+    letter-spacing: 0;
+  }
+  .icon-flow    { background: rgba(20,184,166,0.25); color: #5eead4; }
+  .icon-formula { background: rgba(99,102,241,0.25); color: #a5b4fc; }
+  .icon-db      { background: rgba(244,63,94,0.25);  color: #fda4af; }
+  .icon-const   { background: rgba(245,158,11,0.25); color: #fcd34d; }
+  .icon-input   { background: rgba(6,182,212,0.25);  color: #67e8f9; }
+  .icon-pkg     { background: rgba(129,140,248,0.2); color: #c7d2fe; }
+  .icon-folder  { color: var(--text-muted); font-size: 12px; }
+
+  .tree-label {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 22px;
+  }
+  .tree-label.orphan { color: var(--text-orphan); }
+  .tree-label.category { color: var(--text-secondary); font-size: 11px; }
+
+  .tree-badge {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-left: 4px;
+    flex-shrink: 0;
+  }
+
+  /* Context menu */
+  .ctx-menu {
+    position: fixed;
+    background: #1e1e2e;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 6px;
+    padding: 4px 0;
+    min-width: 200px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    z-index: 9999;
+    font-size: 12px;
+  }
+  .ctx-item {
+    padding: 5px 14px;
+    cursor: pointer;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .ctx-item:hover { background: var(--bg-selected); }
+  .ctx-item.danger { color: #f87171; }
+  .ctx-item.danger:hover { background: rgba(244,63,94,0.15); }
+  .ctx-sep { height: 1px; background: var(--border); margin: 3px 0; }
+  .ctx-shortcut { margin-left: auto; color: var(--text-muted); font-size: 11px; }
+
+  /* Delete dialog */
+  .dialog-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 9998;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .dialog {
+    background: #1e1e2e;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    padding: 20px 24px;
+    max-width: 380px;
+    width: 100%;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.7);
+  }
+  .dialog-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+  }
+  .dialog-body {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 16px;
+  }
+  .dialog-refs {
+    margin: 8px 0;
+    padding-left: 4px;
+  }
+  .dialog-ref-item {
+    color: var(--accent-light);
+    padding: 2px 0;
+  }
+  .dialog-ref-item::before { content: '· '; color: var(--text-muted); }
+  .dialog-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .btn {
+    padding: 5px 14px;
+    border-radius: 5px;
+    font-size: 12px;
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+  }
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+  .btn-ghost:hover { border-color: rgba(255,255,255,0.2); color: var(--text-primary); }
+  .btn-danger {
+    background: rgba(244,63,94,0.2);
+    border: 1px solid rgba(244,63,94,0.4);
+    color: #f87171;
+  }
+  .btn-danger:hover { background: rgba(244,63,94,0.3); }
+  .btn-primary {
+    background: rgba(99,102,241,0.25);
+    border: 1px solid rgba(99,102,241,0.5);
+    color: var(--accent-light);
+  }
+  .btn-primary:hover { background: rgba(99,102,241,0.35); }
+
+  /* Main area (placeholder) */
+  .main-area {
+    flex: 1;
+    background: var(--bg-base);
+    position: relative;
+    overflow: hidden;
+  }
+  .main-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* Status bar */
+  .statusbar {
+    height: 22px;
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  .statusbar-item { font-size: 11px; color: rgba(255,255,255,0.85); }
+
+  /* Scenario buttons */
+  .scenario-bar {
+    position: fixed;
+    bottom: 30px;
+    right: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 200;
+  }
+  .scenario-btn {
+    padding: 5px 12px;
+    background: #1e1e2e;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    white-space: nowrap;
+  }
+  .scenario-btn:hover { border-color: var(--accent); color: var(--accent-light); }
+  .scenario-btn.active-scenario { border-color: var(--accent); color: var(--accent-light); background: rgba(99,102,241,0.1); }
+</style>
+</head>
+<body>
+
+<!-- Menu bar -->
+<div class="menubar">
+  <span class="menubar-title">formuflow</span>
+  <span class="menubar-item">File</span>
+  <span class="menubar-item">Edit</span>
+  <span class="menubar-item">View</span>
+  <span class="menubar-item">Run</span>
+  <span class="menubar-item">Help</span>
+</div>
+
+<!-- App body -->
+<div class="app-body">
+
+  <!-- Icon bar -->
+  <div class="icon-bar">
+    <div class="icon-bar-top">
+      <button class="icon-btn active" title="Component Tree" onclick="showPanel('tree')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M3 6h4v4H3zM10 6h11M10 12h11M3 14h4v4H3zM10 20h11"/>
+        </svg>
+      </button>
+      <button class="icon-btn" title="Search" onclick="showPanel('search')">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+      </button>
+      <button class="icon-btn" title="DB Connections" onclick="showPanel('db')">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 11v6c0 1.66 4.03 3 9 3s9-1.34 9-3v-6"/>
+        </svg>
+      </button>
+      <!-- contrib icon -->
+      <button class="icon-btn" title="Extensions (Contrib)" onclick="showPanel('contrib')">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="icon-bar-bottom">
+      <!-- user icon (future) -->
+      <button class="icon-btn" title="User" onclick="showMenuPopup('user', this)">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+      </button>
+      <button class="icon-btn" title="Settings" onclick="showMenuPopup('settings', this)">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Side panel -->
+  <div class="side-panel" id="sidePanel">
+
+    <!-- COMPONENT TREE section -->
+    <div class="tree-section" id="sectionTree" style="flex: 1; min-height: 0;">
+      <div class="tree-section-header" onclick="toggleSection('sectionTree')">
+        <span class="section-chevron open" id="chevronTree">▶</span>
+        <span class="section-title">Component Tree</span>
+        <div class="section-actions" id="treeActions">
+          <button class="section-action-btn" title="New Component..." onclick="event.stopPropagation(); showDialog('new-component')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <button class="section-action-btn" title="New Folder" onclick="event.stopPropagation()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+          </button>
+          <button class="section-action-btn" title="Refresh" onclick="event.stopPropagation()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="tree-section-body" id="bodyTree">
+
+        <!-- builtin -->
+        <div class="tree-row" onclick="toggleRow('builtin')">
+          <div class="tree-indent" style="width:8px"></div>
+          <div class="tree-chevron" id="chevron-builtin">▶</div>
+          <div class="tree-label category">builtin</div>
+        </div>
+        <div id="rows-builtin">
+          <div class="tree-row">
+            <div class="tree-indent" style="width:24px"></div>
+            <div class="tree-chevron">▶</div>
+            <div class="tree-label category">math</div>
+          </div>
+          <div class="tree-row">
+            <div class="tree-indent" style="width:24px"></div>
+            <div class="tree-chevron">▶</div>
+            <div class="tree-label category">sql</div>
+          </div>
+        </div>
+
+        <!-- user -->
+        <div class="tree-row" onclick="toggleRow('user')">
+          <div class="tree-indent" style="width:8px"></div>
+          <div class="tree-chevron open" id="chevron-user">▶</div>
+          <div class="tree-label category">user</div>
+        </div>
+        <div id="rows-user">
+          <!-- flows -->
+          <div class="tree-row" onclick="toggleRow('flows')">
+            <div class="tree-indent" style="width:24px"></div>
+            <div class="tree-chevron open" id="chevron-flows">▶</div>
+            <div class="tree-label category">flows</div>
+          </div>
+          <div id="rows-flows">
+            <div class="tree-row selected" oncontextmenu="showCtxMenu(event,'flow-entry')">
+              <div class="tree-indent" style="width:40px"></div>
+              <div class="tree-chevron leaf">▶</div>
+              <div class="tree-icon icon-flow">⇢</div>
+              <div class="tree-label">GetIVChar</div>
+              <div class="tree-badge"></div>
+            </div>
+            <div class="tree-row" oncontextmenu="showCtxMenu(event,'flow-entry')">
+              <div class="tree-indent" style="width:40px"></div>
+              <div class="tree-chevron leaf">▶</div>
+              <div class="tree-icon icon-flow">⇢</div>
+              <div class="tree-label">CalcTransistorGain</div>
+            </div>
+          </div>
+
+          <!-- formulas -->
+          <div class="tree-row" onclick="toggleRow('formulas')">
+            <div class="tree-indent" style="width:24px"></div>
+            <div class="tree-chevron open" id="chevron-formulas">▶</div>
+            <div class="tree-label category">formulas</div>
+          </div>
+          <div id="rows-formulas">
+            <div class="tree-row" oncontextmenu="showCtxMenu(event,'formula-entry')">
+              <div class="tree-indent" style="width:40px"></div>
+              <div class="tree-chevron leaf">▶</div>
+              <div class="tree-icon icon-formula">fx</div>
+              <div class="tree-label">CalcGainBandwidth</div>
+            </div>
+            <div class="tree-row" oncontextmenu="showCtxMenu(event,'formula-entry')">
+              <div class="tree-indent" style="width:40px"></div>
+              <div class="tree-chevron leaf">▶</div>
+              <div class="tree-icon icon-formula">fx</div>
+              <div class="tree-label">FilterIV</div>
+              <div class="tree-badge"></div>
+            </div>
+            <div class="tree-row" oncontextmenu="showCtxMenu(event,'formula-entry-orphan')">
+              <div class="tree-indent" style="width:40px"></div>
+              <div class="tree-chevron leaf">▶</div>
+              <div class="tree-icon icon-formula" style="opacity:0.4">fx</div>
+              <div class="tree-label orphan">OldCalc</div>
+            </div>
+          </div>
+
+          <!-- dbtables -->
+          <div class="tree-row" onclick="toggleRow('dbtables')">
+            <div class="tree-indent" style="width:24px"></div>
+            <div class="tree-chevron open" id="chevron-dbtables">▶</div>
+            <div class="tree-label category">dbtables</div>
+          </div>
+          <div id="rows-dbtables">
+            <div class="tree-row" oncontextmenu="showCtxMenu(event,'db-entry')">
+              <div class="tree-indent" style="width:40px"></div>
+              <div class="tree-chevron leaf">▶</div>
+              <div class="tree-icon icon-db" style="font-size:8px">DB</div>
+              <div class="tree-label">transistor_iv_table</div>
+            </div>
+          </div>
+
+          <!-- consts -->
+          <div class="tree-row" onclick="toggleRow('consts')">
+            <div class="tree-indent" style="width:24px"></div>
+            <div class="tree-chevron" id="chevron-consts">▶</div>
+            <div class="tree-label category">consts</div>
+          </div>
+          <div id="rows-consts" style="display:none"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- PACKAGES section (collapsed by default) -->
+    <div class="tree-section collapsed" id="sectionPkg" style="flex-shrink: 0;">
+      <div class="tree-section-header" onclick="toggleSection('sectionPkg')">
+        <span class="section-chevron" id="chevronPkg">▶</span>
+        <span class="section-title">Packages</span>
+        <div class="section-actions">
+          <button class="section-action-btn" title="Refresh" onclick="event.stopPropagation()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="tree-section-body" id="bodyPkg" style="max-height: 200px;">
+        <div class="tree-row" oncontextmenu="showCtxMenu(event,'pkg-entry')">
+          <div class="tree-indent" style="width:8px"></div>
+          <div class="tree-chevron">▶</div>
+          <div class="tree-icon icon-pkg" style="font-size:9px">pkg</div>
+          <div class="tree-label"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="88e5e7fce7faa5e9e6e9e4f1fbe1fba5fdfce1e4fbc8b9a6baa6b8">[email&#160;protected]</a></div>
+        </div>
+        <div class="tree-row" oncontextmenu="showCtxMenu(event,'pkg-entry')">
+          <div class="tree-indent" style="width:8px"></div>
+          <div class="tree-chevron">▶</div>
+          <div class="tree-icon icon-pkg" style="font-size:9px">pkg</div>
+          <div class="tree-label"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="7f0c1618111e13520f0d101c1a0c0c1611183f4f5147514e">[email&#160;protected]</a></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Main area -->
+  <div class="main-area">
+    <div class="main-placeholder">← サイドバーの各要素を右クリックで動作確認できます</div>
+  </div>
+
+</div>
+
+<!-- Status bar -->
+<div class="statusbar">
+  <span class="statusbar-item">⎇ main</span>
+  <span class="statusbar-item" style="margin-left:auto">0 problems</span>
+  <span class="statusbar-item">DuckDB ✓</span>
+  <span class="statusbar-item">UTF-8</span>
+</div>
+
+<!-- Context menu -->
+<div class="ctx-menu" id="ctxMenu" style="display:none">
+  <!-- populated by JS -->
+</div>
+
+<!-- Settings popup menu -->
+<div class="ctx-menu" id="settingsMenu" style="display:none">
+  <div class="ctx-item" onclick="closeAllMenus()">Settings</div>
+</div>
+<div class="ctx-menu" id="userMenu" style="display:none">
+  <div class="ctx-item" onclick="closeAllMenus()">Profile</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" onclick="closeAllMenus()">Sign Out</div>
+</div>
+
+<!-- Dialog -->
+<div class="dialog-overlay" id="dialogOverlay" style="display:none" onclick="closeDialog()">
+  <div class="dialog" onclick="event.stopPropagation()" id="dialogBox">
+    <!-- populated by JS -->
+  </div>
+</div>
+
+<!-- Scenario buttons -->
+<div class="scenario-bar">
+  <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px; text-align:right">シナリオ</div>
+  <button class="scenario-btn" onclick="showScenario('default')">通常表示</button>
+  <button class="scenario-btn" onclick="showScenario('pkg-open')">PACKAGES展開</button>
+  <button class="scenario-btn" onclick="showScenario('ctx-folder')">右クリック（フォルダ）</button>
+  <button class="scenario-btn" onclick="showScenario('ctx-formula')">右クリック（formula）</button>
+  <button class="scenario-btn" onclick="showScenario('ctx-orphan')">右クリック（孤立compo）</button>
+  <button class="scenario-btn" onclick="showScenario('ctx-pkg')">右クリック（package）</button>
+  <button class="scenario-btn" onclick="showScenario('delete-ref')">削除ダイアログ（参照あり）</button>
+  <button class="scenario-btn" onclick="showScenario('delete-ok')">削除ダイアログ（参照なし）</button>
+  <button class="scenario-btn" onclick="showScenario('delete-builtin')">削除ダイアログ（builtin）</button>
+  <button class="scenario-btn" onclick="showScenario('delete-pkg')">削除ダイアログ（package）</button>
+</div>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+  // ── Toggle helpers ──────────────────────────────────────────
+  const openRows = { builtin: true, user: true, flows: true, formulas: true, dbtables: true, consts: false };
+
+  function toggleRow(key) {
+    openRows[key] = !openRows[key];
+    const rows = document.getElementById('rows-' + key);
+    const chevron = document.getElementById('chevron-' + key);
+    if (rows) rows.style.display = openRows[key] ? '' : 'none';
+    if (chevron) chevron.classList.toggle('open', openRows[key]);
+  }
+
+  function toggleSection(id) {
+    const sec = document.getElementById(id);
+    sec.classList.toggle('collapsed');
+    const ch = id === 'sectionTree' ? document.getElementById('chevronTree') : document.getElementById('chevronPkg');
+    ch.classList.toggle('open', !sec.classList.contains('collapsed'));
+  }
+
+  // ── Context menu ────────────────────────────────────────────
+  const ctxDefs = {
+    'folder': [
+      { label: 'New Component...', action: () => showDialog('new-component') },
+      { label: 'New Folder', action: closeAllMenus },
+      { sep: true },
+      { label: 'Rename', action: closeAllMenus },
+      { label: 'Delete', danger: true, action: closeAllMenus },
+    ],
+    'flow-entry': [
+      { label: 'Rename', action: closeAllMenus },
+      { sep: true },
+      { label: 'Delete', danger: true, action: () => showDialog('delete-ok') },
+    ],
+    'formula-entry': [
+      { label: 'Rename', action: closeAllMenus },
+      { sep: true },
+      { label: 'Delete', danger: true, action: () => showDialog('delete-ref') },
+    ],
+    'formula-entry-orphan': [
+      { label: 'Rename', action: closeAllMenus },
+      { sep: true },
+      { label: 'Delete', danger: true, action: () => showDialog('delete-ok') },
+    ],
+    'db-entry': [
+      { label: 'Rename', action: closeAllMenus },
+      { sep: true },
+      { label: 'Delete', danger: true, action: () => showDialog('delete-ok') },
+    ],
+    'pkg-entry': [
+      { label: 'Delete', danger: true, action: () => showDialog('delete-pkg') },
+    ],
+    'builtin-entry': [
+      { label: 'Delete', danger: true, action: () => showDialog('delete-builtin') },
+    ],
+  };
+
+  function showCtxMenu(e, type) {
+    e.preventDefault();
+    closeAllMenus();
+    const menu = document.getElementById('ctxMenu');
+    const items = ctxDefs[type] || [];
+    menu.innerHTML = items.map(item => {
+      if (item.sep) return '<div class="ctx-sep"></div>';
+      return `<div class="ctx-item ${item.danger ? 'danger' : ''}" onclick="(${item.action.toString()})()">${item.label}</div>`;
+    }).join('');
+    menu.style.display = 'block';
+    menu.style.left = Math.min(e.clientX, window.innerWidth - 210) + 'px';
+    menu.style.top = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 10) + 'px';
+  }
+
+  function showMenuPopup(type, btn) {
+    closeAllMenus();
+    const menuId = type === 'settings' ? 'settingsMenu' : 'userMenu';
+    const menu = document.getElementById(menuId);
+    const rect = btn.getBoundingClientRect();
+    menu.style.display = 'block';
+    menu.style.left = (rect.right + 6) + 'px';
+    menu.style.top = (rect.top) + 'px';
+  }
+
+  function closeAllMenus() {
+    document.getElementById('ctxMenu').style.display = 'none';
+    document.getElementById('settingsMenu').style.display = 'none';
+    document.getElementById('userMenu').style.display = 'none';
+  }
+
+  document.addEventListener('click', closeAllMenus);
+  document.addEventListener('contextmenu', e => {
+    if (!e.target.closest('.ctx-menu') && !e.target.closest('.tree-row')) closeAllMenus();
+  });
+
+  // ── Dialog ──────────────────────────────────────────────────
+  function showDialog(type) {
+    closeAllMenus();
+    const overlay = document.getElementById('dialogOverlay');
+    const box = document.getElementById('dialogBox');
+
+    const dialogs = {
+      'new-component': `
+        <div class="dialog-title">New Component</div>
+        <div class="dialog-body">作成するComponentの種別を選択してください。</div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:16px">
+          ${['Formula','Flow','Const','Consts','DatabaseTable','DefaultInput'].map(t =>
+            `<div class="tree-row" style="border-radius:5px;border:1px solid var(--border);padding:4px 10px;cursor:pointer;margin:0" onmouseenter="this.style.background='var(--bg-hover)'" onmouseleave="this.style.background=''">${t}</div>`
+          ).join('')}
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-ghost" onclick="closeDialog()">Cancel</button>
+        </div>
+      `,
+      'delete-ref': `
+        <div class="dialog-title">削除できません</div>
+        <div class="dialog-body">
+          <b style="color:var(--text-primary)">CalcGainBandwidth</b> は下記のComponentで参照されています。
+          <div class="dialog-refs">
+            <div class="dialog-ref-item">GetIVChar</div>
+            <div class="dialog-ref-item">CalcTransistorGain</div>
+          </div>
+          参照を削除してから削除してください。
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-ghost" onclick="closeDialog()">OK</button>
+        </div>
+      `,
+      'delete-ok': `
+        <div class="dialog-title">削除の確認</div>
+        <div class="dialog-body"><b style="color:var(--text-primary)">OldCalc</b> を削除しますか？この操作は取り消せません。</div>
+        <div class="dialog-actions">
+          <button class="btn btn-ghost" onclick="closeDialog()">Cancel</button>
+          <button class="btn btn-danger" onclick="closeDialog()">Delete</button>
+        </div>
+      `,
+      'delete-builtin': `
+        <div class="dialog-title">削除できません</div>
+        <div class="dialog-body">このComponentは削除できません。</div>
+        <div class="dialog-actions">
+          <button class="btn btn-ghost" onclick="closeDialog()">OK</button>
+        </div>
+      `,
+      'delete-pkg': `
+        <div class="dialog-title">Packageのアンインストール</div>
+        <div class="dialog-body">
+          Packageのcomponent単体を削除することはできません。<br><br>
+          Package <b style="color:var(--accent-light)">"transistor-analysis-utils"</b> をアンインストールしますか？
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-ghost" onclick="closeDialog()">Cancel</button>
+          <button class="btn btn-danger" onclick="closeDialog()">Uninstall</button>
+        </div>
+      `,
+    };
+
+    box.innerHTML = dialogs[type] || '';
+    overlay.style.display = 'flex';
+  }
+
+  function closeDialog() {
+    document.getElementById('dialogOverlay').style.display = 'none';
+  }
+
+  // ── Icon panel switch ────────────────────────────────────────
+  function showPanel(type) {
+    document.querySelectorAll('.icon-btn').forEach(b => b.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+  }
+
+  // ── Scenarios ───────────────────────────────────────────────
+  function showScenario(name) {
+    closeAllMenus(); closeDialog();
+    document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active-scenario'));
+    event.target.classList.add('active-scenario');
+
+    const pkgSection = document.getElementById('sectionPkg');
+    const treeSection = document.getElementById('sectionTree');
+
+    if (name === 'default') {
+      pkgSection.classList.add('collapsed');
+      document.getElementById('chevronPkg').classList.remove('open');
+    }
+    if (name === 'pkg-open') {
+      pkgSection.classList.remove('collapsed');
+      document.getElementById('chevronPkg').classList.add('open');
+    }
+    if (name === 'ctx-folder') {
+      const row = document.querySelector('#rows-flows').previousElementSibling;
+      showCtxMenu({ preventDefault:()=>{}, clientX: 180, clientY: 200,
+        target: row, closest: ()=>null }, 'folder');
+    }
+    if (name === 'ctx-formula') {
+      showCtxMenu({ preventDefault:()=>{}, clientX: 180, clientY: 240,
+        target: document.body, closest: ()=>null }, 'formula-entry');
+    }
+    if (name === 'ctx-orphan') {
+      showCtxMenu({ preventDefault:()=>{}, clientX: 180, clientY: 270,
+        target: document.body, closest: ()=>null }, 'formula-entry-orphan');
+    }
+    if (name === 'ctx-pkg') {
+      pkgSection.classList.remove('collapsed');
+      document.getElementById('chevronPkg').classList.add('open');
+      setTimeout(() => {
+        showCtxMenu({ preventDefault:()=>{}, clientX: 180, clientY: 420,
+          target: document.body, closest: ()=>null }, 'pkg-entry');
+      }, 100);
+    }
+    if (name === 'delete-ref') showDialog('delete-ref');
+    if (name === 'delete-ok')  showDialog('delete-ok');
+    if (name === 'delete-builtin') showDialog('delete-builtin');
+    if (name === 'delete-pkg') showDialog('delete-pkg');
+  }
+</script>
+</body>
+</html>

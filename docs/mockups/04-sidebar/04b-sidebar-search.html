@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>formuflow — 04b Sidebar: Search</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-base: #111118;
+    --bg-sidebar: #16161f;
+    --bg-panel: #1a1a26;
+    --bg-hover: rgba(255,255,255,0.05);
+    --bg-active: rgba(255,255,255,0.08);
+    --bg-selected: rgba(99,102,241,0.18);
+
+    --text-primary: #d4d4dc;
+    --text-secondary: #8888a0;
+    --text-muted: #555568;
+
+    --accent: #6366f1;
+    --accent-light: #a5b4fc;
+    --green: #4ade80;
+    --highlight-bg: rgba(253,224,71,0.25);
+    --highlight-color: #fde047;
+
+    --border: rgba(255,255,255,0.07);
+
+    --icon-bar-width: 48px;
+    --panel-width: 260px;
+  }
+
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: 'Menlo', 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Menu bar */
+  .menubar {
+    height: 30px;
+    background: #0e0e16;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 20px;
+    flex-shrink: 0;
+  }
+  .menubar-title { font-size: 12px; font-weight: 600; color: var(--accent-light); letter-spacing: 0.05em; margin-right: 4px; }
+  .menubar-item { font-size: 12px; color: var(--text-secondary); cursor: pointer; padding: 2px 6px; border-radius: 3px; }
+  .menubar-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+  /* App body */
+  .app-body { flex: 1; display: flex; overflow: hidden; }
+
+  /* Icon bar */
+  .icon-bar {
+    width: var(--icon-bar-width);
+    background: #0e0e16;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 4px 0;
+    flex-shrink: 0;
+  }
+  .icon-bar-top { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; }
+  .icon-bar-bottom { display: flex; flex-direction: column; align-items: center; gap: 2px; padding-bottom: 4px; }
+  .icon-btn {
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 6px; cursor: pointer;
+    color: var(--text-muted); font-size: 16px;
+    position: relative;
+    transition: color 0.12s, background 0.12s;
+    border: none; background: transparent;
+  }
+  .icon-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+  .icon-btn.active { color: var(--text-primary); }
+  .icon-btn.active::before {
+    content: '';
+    position: absolute; left: -4px; top: 50%; transform: translateY(-50%);
+    width: 2px; height: 20px;
+    background: var(--accent); border-radius: 0 2px 2px 0;
+  }
+
+  /* Side panel */
+  .side-panel {
+    width: var(--panel-width);
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  /* Search panel header */
+  .panel-header {
+    padding: 8px 10px 6px;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  /* Search input */
+  .search-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .search-input {
+    width: 100%;
+    background: #0e0e16;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 5px;
+    padding: 5px 28px 5px 8px;
+    font-size: 12px;
+    font-family: inherit;
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.12s;
+  }
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--text-muted); }
+  .search-clear {
+    position: absolute; right: 6px;
+    background: none; border: none;
+    color: var(--text-muted); cursor: pointer;
+    font-size: 14px; line-height: 1;
+    padding: 2px;
+    border-radius: 3px;
+  }
+  .search-clear:hover { color: var(--text-primary); background: var(--bg-hover); }
+
+  /* Result meta */
+  .result-meta {
+    padding: 6px 10px;
+    font-size: 11px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  /* Result list */
+  .result-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2px 0;
+  }
+
+  /* Result item */
+  .result-item {
+    border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.03));
+  }
+  .result-item-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px 4px;
+    cursor: pointer;
+  }
+  .result-item-header:hover { background: var(--bg-hover); }
+
+  .result-icon {
+    width: 18px; height: 16px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 3px;
+    font-size: 9px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .icon-formula { background: rgba(99,102,241,0.25); color: #a5b4fc; }
+  .icon-flow    { background: rgba(20,184,166,0.25); color: #5eead4; }
+  .icon-db      { background: rgba(244,63,94,0.25);  color: #fda4af; }
+  .icon-const   { background: rgba(245,158,11,0.25); color: #fcd34d; }
+
+  .result-name {
+    font-size: 12px;
+    color: var(--text-primary);
+    font-weight: 500;
+    flex: 1;
+  }
+  .result-type {
+    font-size: 10px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  /* Hit rows */
+  .result-hits { padding: 0 10px 6px 34px; }
+  .hit-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 2px 0;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .hit-field {
+    color: var(--text-muted);
+    flex-shrink: 0;
+    min-width: 48px;
+  }
+  .hit-value {
+    color: var(--text-secondary);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .hit-hl {
+    background: var(--highlight-bg);
+    color: var(--highlight-color);
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+
+  /* Refs row */
+  .refs-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 0 4px;
+    flex-wrap: wrap;
+  }
+  .refs-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .ref-link {
+    font-size: 11px;
+    color: var(--accent-light);
+    cursor: pointer;
+    border-radius: 3px;
+    padding: 0 4px;
+    text-decoration: none;
+    border: 1px solid rgba(99,102,241,0.3);
+    background: rgba(99,102,241,0.08);
+    transition: background 0.1s, border-color 0.1s;
+  }
+  .ref-link:hover { background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.6); }
+
+  /* Empty state */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 24px;
+    text-align: center;
+  }
+  .empty-icon { font-size: 28px; opacity: 0.4; }
+
+  /* Main area */
+  .main-area {
+    flex: 1;
+    background: var(--bg-base);
+    position: relative;
+    overflow: hidden;
+  }
+  .main-placeholder {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); font-size: 12px; letter-spacing: 0.05em;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* Status bar */
+  .statusbar {
+    height: 22px;
+    background: var(--accent);
+    display: flex; align-items: center;
+    padding: 0 12px; gap: 16px; flex-shrink: 0;
+  }
+  .statusbar-item { font-size: 11px; color: rgba(255,255,255,0.85); }
+
+  /* Scenario buttons */
+  .scenario-bar {
+    position: fixed; bottom: 30px; right: 16px;
+    display: flex; flex-direction: column; gap: 6px; z-index: 200;
+  }
+  .scenario-btn {
+    padding: 5px 12px;
+    background: #1e1e2e; border: 1px solid var(--border);
+    border-radius: 5px; color: var(--text-secondary);
+    font-size: 11px; cursor: pointer; font-family: inherit;
+    text-align: left; white-space: nowrap;
+  }
+  .scenario-btn:hover { border-color: var(--accent); color: var(--accent-light); }
+  .scenario-btn.active-scenario { border-color: var(--accent); color: var(--accent-light); background: rgba(99,102,241,0.1); }
+</style>
+</head>
+<body>
+
+<div class="menubar">
+  <span class="menubar-title">formuflow</span>
+  <span class="menubar-item">File</span>
+  <span class="menubar-item">Edit</span>
+  <span class="menubar-item">View</span>
+  <span class="menubar-item">Run</span>
+  <span class="menubar-item">Help</span>
+</div>
+
+<div class="app-body">
+
+  <!-- Icon bar -->
+  <div class="icon-bar">
+    <div class="icon-bar-top">
+      <button class="icon-btn" title="Component Tree">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M3 6h4v4H3zM10 6h11M10 12h11M3 14h4v4H3zM10 20h11"/>
+        </svg>
+      </button>
+      <button class="icon-btn active" title="Search">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+      </button>
+      <button class="icon-btn" title="DB Connections">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 11v6c0 1.66 4.03 3 9 3s9-1.34 9-3v-6"/>
+        </svg>
+      </button>
+      <button class="icon-btn" title="Extensions">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="icon-bar-bottom">
+      <button class="icon-btn" title="User">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+      </button>
+      <button class="icon-btn" title="Settings">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Side panel: Search -->
+  <div class="side-panel">
+
+    <div class="panel-header">
+      <div class="panel-title">Search</div>
+      <div class="search-input-wrap">
+        <input class="search-input" id="searchInput" type="text" placeholder="Component名・式・変数名で検索"
+          oninput="onSearchInput(this.value)" value="">
+        <button class="search-clear" id="clearBtn" style="display:none" onclick="clearSearch()">✕</button>
+      </div>
+    </div>
+
+    <div id="resultMeta" class="result-meta" style="display:none"></div>
+
+    <div class="result-list" id="resultList">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">⌕</div>
+        <div class="empty-msg">検索ワードを入力してください</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="main-area">
+    <div class="main-placeholder">← 検索パネルで認識合わせ</div>
+  </div>
+</div>
+
+<div class="statusbar">
+  <span class="statusbar-item">⎇ main</span>
+  <span class="statusbar-item" style="margin-left:auto">0 problems</span>
+  <span class="statusbar-item">DuckDB ✓</span>
+  <span class="statusbar-item">UTF-8</span>
+</div>
+
+<!-- Scenario buttons -->
+<div class="scenario-bar">
+  <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px; text-align:right">シナリオ</div>
+  <button class="scenario-btn" onclick="showScenario('empty', this)">空（初期状態）</button>
+  <button class="scenario-btn" onclick="showScenario('no-result', this)">検索結果なし</button>
+  <button class="scenario-btn" onclick="showScenario('formula-hit', this)">formula検索ヒット</button>
+  <button class="scenario-btn" onclick="showScenario('multi-hit', this)">複数種別ヒット</button>
+  <button class="scenario-btn" onclick="showScenario('ref-links', this)">参照元リンクあり</button>
+</div>
+
+<script>
+  // ── Data ────────────────────────────────────────────────────
+  const allComponents = [
+    {
+      id: 'calc-gain',
+      name: 'CalcGainBandwidth',
+      type: 'formula',
+      fields: {
+        '引数': 'ivChar, vBias, gain',
+        '式': 'ivChar + vBias / gain',
+      },
+      refs: ['GetIVChar', 'FilterIV'],
+    },
+    {
+      id: 'filter-iv',
+      name: 'FilterIV',
+      type: 'formula',
+      fields: {
+        '引数': 'ivChar, vgs',
+        '式': 'WHERE ivChar > 0 AND vgs < threshold',
+      },
+      refs: ['GetIVChar'],
+    },
+    {
+      id: 'old-calc',
+      name: 'OldCalc',
+      type: 'formula',
+      fields: {
+        '引数': 'vBias',
+        '式': 'vBias * 2.0',
+      },
+      refs: [],
+    },
+    {
+      id: 'get-iv',
+      name: 'GetIVChar',
+      type: 'flow',
+      fields: {
+        '説明': 'IV特性取得フロー',
+      },
+      refs: ['CalcTransistorGain'],
+    },
+    {
+      id: 'transistor-table',
+      name: 'transistor_iv_table',
+      type: 'dbtable',
+      fields: {
+        'テーブル名': 'transistor_iv_table',
+        '列': 'transistor_id, vgs, vds, id_current',
+      },
+      refs: ['GetIVChar'],
+    },
+    {
+      id: 'transistor-id',
+      name: 'transistorId',
+      type: 'const',
+      fields: {
+        '値': '"TX-2024-A"',
+      },
+      refs: ['GetIVChar'],
+    },
+  ];
+
+  const typeLabels = {
+    formula: 'formula',
+    flow: 'flow',
+    dbtable: 'dbtable',
+    const: 'const',
+  };
+  const typeIconClass = {
+    formula: 'icon-formula',
+    flow: 'icon-flow',
+    dbtable: 'icon-db',
+    const: 'icon-const',
+  };
+  const typeIconText = {
+    formula: 'fx',
+    flow: '⇢',
+    dbtable: 'DB',
+    const: 'C',
+  };
+
+  // ── Search ──────────────────────────────────────────────────
+  function hl(text, query) {
+    if (!query) return text;
+    const idx = text.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return text;
+    return text.slice(0, idx)
+      + `<span class="hit-hl">${text.slice(idx, idx + query.length)}</span>`
+      + text.slice(idx + query.length);
+  }
+
+  function search(query) {
+    if (!query.trim()) return [];
+    const q = query.toLowerCase();
+    return allComponents.filter(c => {
+      if (c.name.toLowerCase().includes(q)) return true;
+      return Object.values(c.fields).some(v => v.toLowerCase().includes(q));
+    });
+  }
+
+  // emptyStateはDOMから切り離さず visibility で制御する
+  const emptyState = document.getElementById('emptyState');
+
+  function renderResults(query, results) {
+    const list   = document.getElementById('resultList');
+    const meta   = document.getElementById('resultMeta');
+    const clearBtn = document.getElementById('clearBtn');
+
+    if (!query.trim()) {
+      meta.style.display = 'none';
+      clearBtn.style.display = 'none';
+      // emptyStateだけ残してresult部分をクリア
+      Array.from(list.children).forEach(el => {
+        if (el !== emptyState) el.remove();
+      });
+      emptyState.style.display = 'flex';
+      emptyState.querySelector('.empty-msg').textContent = '検索ワードを入力してください';
+      return;
+    }
+
+    emptyState.style.display = 'none';
+    meta.style.display = 'block';
+
+    // emptyState以外を削除してから結果を追加
+    Array.from(list.children).forEach(el => {
+      if (el !== emptyState) el.remove();
+    });
+
+    if (results.length === 0) {
+      meta.textContent = `"${query}" — 0 件`;
+      const noResult = document.createElement('div');
+      noResult.className = 'empty-state';
+      noResult.innerHTML = '<div class="empty-icon" style="font-size:22px">🔍</div><div class="empty-msg">該当するComponentが見つかりませんでした</div>';
+      list.appendChild(noResult);
+      return;
+    }
+
+    meta.textContent = `"${query}" — ${results.length} 件`;
+
+    const fragment = document.createDocumentFragment();
+    results.forEach(c => {
+      const hitFields = Object.entries(c.fields)
+        .filter(([k, v]) => v.toLowerCase().includes(query.toLowerCase()) || c.name.toLowerCase().includes(query.toLowerCase()))
+        .map(([k, v]) => `
+          <div class="hit-row">
+            <span class="hit-field">${k}:</span>
+            <span class="hit-value">${hl(v, query)}</span>
+          </div>
+        `).join('');
+
+      const refsHtml = c.refs.length > 0
+        ? `<div class="refs-row">
+            <span class="refs-label">参照元:</span>
+            ${c.refs.map(r => `<span class="ref-link" title="${r}をタブで開く">${r}</span>`).join('')}
+           </div>`
+        : '';
+
+      const item = document.createElement('div');
+      item.className = 'result-item';
+      item.innerHTML = `
+        <div class="result-item-header">
+          <div class="result-icon ${typeIconClass[c.type]}">${typeIconText[c.type]}</div>
+          <span class="result-name">${hl(c.name, query)}</span>
+          <span class="result-type">${typeLabels[c.type]}</span>
+        </div>
+        <div class="result-hits">
+          ${hitFields}
+          ${refsHtml}
+        </div>
+      `;
+      fragment.appendChild(item);
+    });
+    list.appendChild(fragment);
+  }
+
+  function onSearchInput(val) {
+    document.getElementById('clearBtn').style.display = val ? 'block' : 'none';
+    renderResults(val, search(val));
+  }
+
+  function clearSearch() {
+    const input = document.getElementById('searchInput');
+    input.value = '';
+    input.focus();
+    onSearchInput('');
+  }
+
+  // ── Scenarios ───────────────────────────────────────────────
+  function setQuery(q) {
+    const input = document.getElementById('searchInput');
+    input.value = q;
+    onSearchInput(q);
+  }
+
+  function showScenario(name, btn) {
+    document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active-scenario'));
+    btn.classList.add('active-scenario');
+
+    if (name === 'empty')       setQuery('');
+    if (name === 'no-result')   setQuery('zzznomatch');
+    if (name === 'formula-hit') setQuery('gain');
+    if (name === 'multi-hit')   setQuery('iv');
+    if (name === 'ref-links')   setQuery('vBias');
+  }
+</script>
+</body>
+</html>

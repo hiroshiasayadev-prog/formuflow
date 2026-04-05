@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>formuflow — 04c Sidebar: DB Connections</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-base: #111118;
+    --bg-sidebar: #16161f;
+    --bg-hover: rgba(255,255,255,0.05);
+    --bg-active: rgba(255,255,255,0.08);
+    --bg-selected: rgba(99,102,241,0.18);
+
+    --text-primary: #d4d4dc;
+    --text-secondary: #8888a0;
+    --text-muted: #555568;
+
+    --accent: #6366f1;
+    --accent-light: #a5b4fc;
+
+    --status-ok:   #4ade80;
+    --status-err:  #f43f5e;
+    --status-none: #555568;
+
+    --border: rgba(255,255,255,0.07);
+
+    --icon-bar-width: 48px;
+    --panel-width: 260px;
+  }
+
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: 'Menlo', 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .menubar {
+    height: 30px;
+    background: #0e0e16;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 12px; gap: 20px; flex-shrink: 0;
+  }
+  .menubar-title { font-size: 12px; font-weight: 600; color: var(--accent-light); letter-spacing: 0.05em; margin-right: 4px; }
+  .menubar-item  { font-size: 12px; color: var(--text-secondary); cursor: pointer; padding: 2px 6px; border-radius: 3px; }
+  .menubar-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+  .app-body { flex: 1; display: flex; overflow: hidden; }
+
+  /* Icon bar */
+  .icon-bar {
+    width: var(--icon-bar-width);
+    background: #0e0e16;
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center;
+    padding: 4px 0; flex-shrink: 0;
+  }
+  .icon-bar-top  { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; }
+  .icon-bar-bottom { display: flex; flex-direction: column; align-items: center; gap: 2px; padding-bottom: 4px; }
+  .icon-btn {
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 6px; cursor: pointer;
+    color: var(--text-muted);
+    position: relative;
+    transition: color 0.12s, background 0.12s;
+    border: none; background: transparent;
+  }
+  .icon-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+  .icon-btn.active { color: var(--text-primary); }
+  .icon-btn.active::before {
+    content: '';
+    position: absolute; left: -4px; top: 50%; transform: translateY(-50%);
+    width: 2px; height: 20px;
+    background: var(--accent); border-radius: 0 2px 2px 0;
+  }
+
+  /* Side panel */
+  .side-panel {
+    width: var(--panel-width);
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden; flex-shrink: 0;
+  }
+
+  /* Panel header */
+  .panel-header {
+    height: 28px;
+    display: flex; align-items: center;
+    padding: 0 8px;
+    flex-shrink: 0;
+    position: relative;
+    user-select: none;
+    cursor: default;
+  }
+  .panel-header:hover .header-actions { opacity: 1; }
+  .panel-title {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.08em; color: var(--text-secondary);
+    text-transform: uppercase; flex: 1;
+  }
+  .header-actions {
+    display: flex; gap: 1px;
+    opacity: 0; transition: opacity 0.12s;
+  }
+  .header-action-btn {
+    width: 20px; height: 20px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 3px; cursor: pointer;
+    color: var(--text-secondary); font-size: 13px;
+    border: none; background: transparent;
+  }
+  .header-action-btn:hover { background: var(--bg-active); color: var(--text-primary); }
+
+  /* Scroll body */
+  .panel-body {
+    flex: 1; overflow-y: auto;
+    padding: 2px 0;
+  }
+
+  /* Folder row */
+  .folder-row {
+    display: flex; align-items: center;
+    height: 22px; padding-right: 8px;
+    cursor: pointer; user-select: none;
+    position: relative;
+  }
+  .folder-row:hover { background: var(--bg-hover); }
+  .folder-row:hover .folder-actions { opacity: 1; }
+
+  .row-indent { flex-shrink: 0; }
+  .row-chevron {
+    width: 16px; height: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; color: var(--text-muted);
+    transition: transform 0.12s; flex-shrink: 0;
+  }
+  .row-chevron.open { transform: rotate(90deg); }
+
+  .folder-label {
+    flex: 1; font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .folder-actions {
+    display: flex; gap: 1px;
+    opacity: 0; transition: opacity 0.12s;
+  }
+  .folder-action-btn {
+    width: 18px; height: 18px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 3px; cursor: pointer;
+    color: var(--text-muted); font-size: 11px;
+    border: none; background: transparent;
+  }
+  .folder-action-btn:hover { background: var(--bg-active); color: var(--text-primary); }
+
+  /* Connection row */
+  .conn-row {
+    display: flex; align-items: center;
+    height: 28px; padding-right: 8px;
+    cursor: pointer; user-select: none;
+    position: relative;
+  }
+  .conn-row:hover { background: var(--bg-hover); }
+  .conn-row:hover .conn-actions { opacity: 1; }
+  .conn-row:hover .conn-time    { opacity: 0; }
+
+  /* Status dot */
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%; flex-shrink: 0;
+    margin-right: 7px;
+  }
+  .status-ok   { background: var(--status-ok); box-shadow: 0 0 4px rgba(74,222,128,0.5); }
+  .status-err  { background: var(--status-err); box-shadow: 0 0 4px rgba(244,63,94,0.4); }
+  .status-none { background: var(--status-none); }
+
+  .conn-name {
+    flex: 1; font-size: 12px; color: var(--text-primary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .conn-time {
+    font-size: 10px; color: var(--text-muted);
+    white-space: nowrap; flex-shrink: 0;
+    transition: opacity 0.1s;
+  }
+
+  .conn-actions {
+    position: absolute; right: 6px;
+    display: flex; gap: 2px;
+    opacity: 0; transition: opacity 0.12s;
+  }
+  .conn-action-btn {
+    width: 18px; height: 18px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 3px; cursor: pointer;
+    color: var(--text-muted);
+    border: none; background: transparent;
+  }
+  .conn-action-btn:hover { background: var(--bg-active); color: var(--text-primary); }
+
+  /* Status badge on err */
+  .conn-err-badge {
+    font-size: 10px; color: var(--status-err);
+    margin-right: 6px; flex-shrink: 0;
+  }
+
+  /* Context menu */
+  .ctx-menu {
+    position: fixed;
+    background: #1e1e2e;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 6px;
+    padding: 4px 0; min-width: 190px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    z-index: 9999; font-size: 12px;
+  }
+  .ctx-item {
+    padding: 5px 14px; cursor: pointer;
+    color: var(--text-primary);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .ctx-item:hover { background: var(--bg-selected); }
+  .ctx-item.danger { color: #f87171; }
+  .ctx-item.danger:hover { background: rgba(244,63,94,0.15); }
+  .ctx-sep { height: 1px; background: var(--border); margin: 3px 0; }
+
+  /* Dialog */
+  .dialog-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6); z-index: 9998;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .dialog {
+    background: #1e1e2e;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px; padding: 20px 24px;
+    max-width: 360px; width: 100%;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.7);
+  }
+  .dialog-title { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 10px; }
+  .dialog-body  { font-size: 12px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 16px; }
+  .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .btn { padding: 5px 14px; border-radius: 5px; font-size: 12px; cursor: pointer; border: none; font-family: inherit; }
+  .btn-ghost  { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); }
+  .btn-ghost:hover  { border-color: rgba(255,255,255,0.2); color: var(--text-primary); }
+  .btn-danger { background: rgba(244,63,94,0.2); border: 1px solid rgba(244,63,94,0.4); color: #f87171; }
+  .btn-danger:hover { background: rgba(244,63,94,0.3); }
+
+  /* Main area */
+  .main-area { flex: 1; background: var(--bg-base); position: relative; overflow: hidden; }
+  .main-placeholder {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); font-size: 12px; letter-spacing: 0.05em;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* Status bar */
+  .statusbar {
+    height: 22px; background: var(--accent);
+    display: flex; align-items: center;
+    padding: 0 12px; gap: 16px; flex-shrink: 0;
+  }
+  .statusbar-item { font-size: 11px; color: rgba(255,255,255,0.85); }
+
+  /* Scenario bar */
+  .scenario-bar {
+    position: fixed; bottom: 30px; right: 16px;
+    display: flex; flex-direction: column; gap: 6px; z-index: 200;
+  }
+  .scenario-btn {
+    padding: 5px 12px;
+    background: #1e1e2e; border: 1px solid var(--border);
+    border-radius: 5px; color: var(--text-secondary);
+    font-size: 11px; cursor: pointer; font-family: inherit;
+    text-align: left; white-space: nowrap;
+  }
+  .scenario-btn:hover { border-color: var(--accent); color: var(--accent-light); }
+  .scenario-btn.active-scenario { border-color: var(--accent); color: var(--accent-light); background: rgba(99,102,241,0.1); }
+</style>
+</head>
+<body>
+
+<div class="menubar">
+  <span class="menubar-title">formuflow</span>
+  <span class="menubar-item">File</span>
+  <span class="menubar-item">Edit</span>
+  <span class="menubar-item">View</span>
+  <span class="menubar-item">Run</span>
+  <span class="menubar-item">Help</span>
+</div>
+
+<div class="app-body">
+
+  <!-- Icon bar -->
+  <div class="icon-bar">
+    <div class="icon-bar-top">
+      <button class="icon-btn" title="Component Tree">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M3 6h4v4H3zM10 6h11M10 12h11M3 14h4v4H3zM10 20h11"/>
+        </svg>
+      </button>
+      <button class="icon-btn" title="Search">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+      </button>
+      <button class="icon-btn active" title="DB Connections">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <ellipse cx="12" cy="5" rx="9" ry="3"/>
+          <path d="M3 5v6c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/>
+          <path d="M3 11v6c0 1.66 4.03 3 9 3s9-1.34 9-3v-6"/>
+        </svg>
+      </button>
+      <button class="icon-btn" title="Extensions">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+          <line x1="12" y1="22.08" x2="12" y2="12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="icon-bar-bottom">
+      <button class="icon-btn" title="User">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+      </button>
+      <button class="icon-btn" title="Settings">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Side panel: DB Connections -->
+  <div class="side-panel">
+
+    <div class="panel-header">
+      <span class="panel-title">DB Connections</span>
+      <div class="header-actions">
+        <button class="header-action-btn" title="New Connection" onclick="showDialog('new-conn')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+        <button class="header-action-btn" title="New Folder">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            <line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>
+          </svg>
+        </button>
+        <button class="header-action-btn" title="Refresh All" onclick="refreshAll(this)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"/>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="panel-body" id="panelBody">
+      <!-- populated by JS -->
+    </div>
+
+  </div>
+
+  <div class="main-area">
+    <div class="main-placeholder">← DB接続パネルで認識合わせ</div>
+  </div>
+</div>
+
+<div class="statusbar">
+  <span class="statusbar-item">⎇ main</span>
+  <span class="statusbar-item" style="margin-left:auto">0 problems</span>
+  <span class="statusbar-item" id="duckdbStatus">DuckDB ✓</span>
+  <span class="statusbar-item">UTF-8</span>
+</div>
+
+<!-- Context menu -->
+<div class="ctx-menu" id="ctxMenu" style="display:none"></div>
+
+<!-- Dialog -->
+<div class="dialog-overlay" id="dialogOverlay" style="display:none" onclick="closeDialog()">
+  <div class="dialog" onclick="event.stopPropagation()" id="dialogBox"></div>
+</div>
+
+<!-- Scenario bar -->
+<div class="scenario-bar">
+  <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px; text-align:right">シナリオ</div>
+  <button class="scenario-btn" onclick="showScenario('default', this)">通常表示</button>
+  <button class="scenario-btn" onclick="showScenario('all-ok', this)">全接続OK</button>
+  <button class="scenario-btn" onclick="showScenario('with-err', this)">エラーあり</button>
+  <button class="scenario-btn" onclick="showScenario('ctx-folder', this)">右クリック（フォルダ）</button>
+  <button class="scenario-btn" onclick="showScenario('ctx-conn', this)">右クリック（接続）</button>
+  <button class="scenario-btn" onclick="showScenario('hover-conn', this)">hover（接続）</button>
+  <button class="scenario-btn" onclick="showScenario('delete-conn', this)">削除ダイアログ</button>
+</div>
+
+<script>
+  // ── State ───────────────────────────────────────────────────
+  const folders = [
+    {
+      id: 'production',
+      label: 'production',
+      open: true,
+      conns: [
+        { id: 'transistor-db', name: 'transistor_db',   status: 'ok',   lastMin: 2  },
+        { id: 'iv-archive',    name: 'iv_archive',      status: 'none', lastMin: 42 },
+      ],
+    },
+    {
+      id: 'staging',
+      label: 'staging',
+      open: true,
+      conns: [
+        { id: 'test-db',    name: 'test_db',    status: 'ok',  lastMin: 8  },
+        { id: 'broken-db',  name: 'broken_db',  status: 'err', lastMin: 1  },
+      ],
+    },
+  ];
+
+  const statusDot  = { ok: 'status-ok', err: 'status-err', none: 'status-none' };
+  const statusChar = { ok: '●', err: '✕', none: '○' };
+
+  function timeLabel(min) {
+    if (min < 1)   return 'just now';
+    if (min === 1) return 'last 1 min';
+    return `last ${min} min`;
+  }
+
+  // ── Render ──────────────────────────────────────────────────
+  let hoveredConnId = null;
+
+  function render() {
+    const body = document.getElementById('panelBody');
+    body.innerHTML = '';
+
+    folders.forEach(folder => {
+      // folder row
+      const frow = document.createElement('div');
+      frow.className = 'folder-row';
+      frow.onclick = () => { folder.open = !folder.open; render(); };
+      frow.oncontextmenu = (e) => { e.preventDefault(); showCtxMenu(e, 'folder', folder); };
+      frow.innerHTML = `
+        <div class="row-indent" style="width:8px"></div>
+        <div class="row-chevron ${folder.open ? 'open' : ''}">▶</div>
+        <span class="folder-label">${folder.label}</span>
+        <div class="folder-actions">
+          <button class="folder-action-btn" title="New Connection" onclick="event.stopPropagation(); showDialog('new-conn')">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
+          <button class="folder-action-btn" title="New Folder" onclick="event.stopPropagation()">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+          </button>
+        </div>
+      `;
+      body.appendChild(frow);
+
+      if (!folder.open) return;
+
+      folder.conns.forEach(conn => {
+        const crow = document.createElement('div');
+        crow.className = 'conn-row';
+        crow.dataset.connId = conn.id;
+        if (hoveredConnId === conn.id) crow.classList.add('hovered');
+        crow.oncontextmenu = (e) => { e.preventDefault(); showCtxMenu(e, 'conn', conn); };
+        crow.innerHTML = `
+          <div class="row-indent" style="width:24px"></div>
+          <div class="status-dot ${statusDot[conn.status]}"></div>
+          <span class="conn-name">${conn.name}</span>
+          <span class="conn-time">${timeLabel(conn.lastMin)}</span>
+          <div class="conn-actions">
+            <button class="conn-action-btn" title="Edit Connection" onclick="event.stopPropagation()">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+            <button class="conn-action-btn" title="Check Status" onclick="event.stopPropagation(); checkStatus('${conn.id}', this)">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 4 23 10 17 10"/>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+              </svg>
+            </button>
+          </div>
+        `;
+        body.appendChild(crow);
+      });
+    });
+  }
+
+  // ── Check status (simulate) ─────────────────────────────────
+  function checkStatus(connId, btn) {
+    // find conn
+    for (const f of folders) {
+      const conn = f.conns.find(c => c.id === connId);
+      if (conn) {
+        conn.lastMin = 0;
+        // simulate: broken_db stays err, others ok
+        if (conn.id !== 'broken-db') conn.status = 'ok';
+        break;
+      }
+    }
+    render();
+  }
+
+  function refreshAll(btn) {
+    folders.forEach(f => f.conns.forEach(conn => {
+      conn.lastMin = 0;
+      if (conn.id !== 'broken-db') conn.status = 'ok';
+    }));
+    render();
+  }
+
+  // ── Context menu ────────────────────────────────────────────
+  function showCtxMenu(e, type, data) {
+    closeCtxMenu();
+    const menu = document.getElementById('ctxMenu');
+
+    if (type === 'folder') {
+      menu.innerHTML = `
+        <div class="ctx-item" onclick="showDialog('new-conn'); closeCtxMenu()">New Connection</div>
+        <div class="ctx-item" onclick="closeCtxMenu()">New Folder</div>
+        <div class="ctx-sep"></div>
+        <div class="ctx-item" onclick="closeCtxMenu()">Rename</div>
+        <div class="ctx-item danger" onclick="closeCtxMenu()">Delete</div>
+      `;
+    } else {
+      menu.innerHTML = `
+        <div class="ctx-item" onclick="closeCtxMenu()">Edit</div>
+        <div class="ctx-item" onclick="closeCtxMenu()">Check Status</div>
+        <div class="ctx-sep"></div>
+        <div class="ctx-item danger" onclick="showDialog('delete-conn'); closeCtxMenu()">Delete</div>
+      `;
+    }
+
+    menu.style.display = 'block';
+    menu.style.left = Math.min(e.clientX, window.innerWidth  - 200) + 'px';
+    menu.style.top  = Math.min(e.clientY, window.innerHeight - 160) + 'px';
+  }
+
+  function closeCtxMenu() {
+    document.getElementById('ctxMenu').style.display = 'none';
+  }
+  document.addEventListener('click', closeCtxMenu);
+
+  // ── Dialog ──────────────────────────────────────────────────
+  function showDialog(type) {
+    const box = document.getElementById('dialogBox');
+    if (type === 'new-conn') {
+      box.innerHTML = `
+        <div class="dialog-title">New Connection</div>
+        <div class="dialog-body">接続設定ページをタブで開きます。</div>
+        <div class="dialog-actions">
+          <button class="btn btn-ghost" onclick="closeDialog()">Cancel</button>
+          <button class="btn btn-ghost" style="border-color:rgba(99,102,241,0.5);color:var(--accent-light)" onclick="closeDialog()">Open</button>
+        </div>
+      `;
+    } else if (type === 'delete-conn') {
+      box.innerHTML = `
+        <div class="dialog-title">削除の確認</div>
+        <div class="dialog-body"><b style="color:var(--text-primary)">test_db</b> を削除しますか？この操作は取り消せません。</div>
+        <div class="dialog-actions">
+          <button class="btn btn-ghost" onclick="closeDialog()">Cancel</button>
+          <button class="btn btn-danger" onclick="closeDialog()">Delete</button>
+        </div>
+      `;
+    }
+    document.getElementById('dialogOverlay').style.display = 'flex';
+  }
+
+  function closeDialog() {
+    document.getElementById('dialogOverlay').style.display = 'none';
+  }
+
+  // ── Scenarios ───────────────────────────────────────────────
+  function showScenario(name, btn) {
+    document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active-scenario'));
+    btn.classList.add('active-scenario');
+    closeCtxMenu(); closeDialog();
+    hoveredConnId = null;
+
+    if (name === 'default') {
+      folders[0].conns[0].status = 'ok';   folders[0].conns[0].lastMin = 2;
+      folders[0].conns[1].status = 'none'; folders[0].conns[1].lastMin = 42;
+      folders[1].conns[0].status = 'ok';   folders[1].conns[0].lastMin = 8;
+      folders[1].conns[1].status = 'err';  folders[1].conns[1].lastMin = 1;
+      folders.forEach(f => f.open = true);
+      render();
+    }
+    if (name === 'all-ok') {
+      folders.forEach(f => { f.open = true; f.conns.forEach(c => { c.status = 'ok'; c.lastMin = 1; }); });
+      render();
+    }
+    if (name === 'with-err') {
+      folders[0].conns[0].status = 'ok';   folders[0].conns[0].lastMin = 2;
+      folders[0].conns[1].status = 'err';  folders[0].conns[1].lastMin = 30;
+      folders[1].conns[0].status = 'ok';   folders[1].conns[0].lastMin = 5;
+      folders[1].conns[1].status = 'err';  folders[1].conns[1].lastMin = 1;
+      folders.forEach(f => f.open = true);
+      render();
+    }
+    if (name === 'ctx-folder') {
+      render();
+      setTimeout(() => showCtxMenu({ clientX: 180, clientY: 60 }, 'folder', folders[0]), 50);
+    }
+    if (name === 'ctx-conn') {
+      render();
+      setTimeout(() => showCtxMenu({ clientX: 180, clientY: 100 }, 'conn', folders[0].conns[0]), 50);
+    }
+    if (name === 'hover-conn') {
+      hoveredConnId = 'transistor-db';
+      render();
+      // manually show the actions by adding CSS class
+      setTimeout(() => {
+        document.querySelectorAll('.conn-row').forEach(row => {
+          if (row.dataset.connId === 'transistor-db') {
+            row.querySelector('.conn-actions').style.opacity = '1';
+            row.querySelector('.conn-time').style.opacity = '0';
+          }
+        });
+      }, 50);
+    }
+    if (name === 'delete-conn') {
+      render();
+      showDialog('delete-conn');
+    }
+  }
+
+  // init
+  render();
+</script>
+</body>
+</html>
