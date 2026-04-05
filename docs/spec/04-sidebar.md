@@ -244,11 +244,11 @@ VSCodeの検索パネルに準拠。
 
 | Component | 検索対象フィールド |
 |---|---|
-| Formula | 名前・式・引数名 |
-| Flow | 名前 |
-| Const / Consts | 名前・値 |
-| DatabaseTable | 名前・テーブル名・列名 |
-| DefaultInput | 名前・引数名 |
+| Formula | 名前・式・引数名・概要 |
+| Flow | 名前・概要 |
+| Const / Consts | 名前・値・概要 |
+| DatabaseTable | 名前・テーブル名・列名・概要 |
+| DefaultInput | 名前・引数名・概要 |
 
 ### 検索結果の表示形式
 

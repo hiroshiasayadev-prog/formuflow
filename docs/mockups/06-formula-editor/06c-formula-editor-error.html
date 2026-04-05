@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>06c — Formula Editor: バリデーションエラー</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#111118; --bg2:#16161f; --bg3:#1c1c28;
+  --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14);
+  --text:#e2e2e8; --text2:#8888a0; --text3:#55556a;
+  --accent:#6366f1; --accent2:#a5b4fc;
+  --green:#4ade80; --green-bg:rgba(74,222,128,0.15);
+  --red:#ef4444; --red-bg:rgba(239,68,68,0.12);
+  --var-hi:rgba(99,102,241,0.25); --var-hi-text:#a5b4fc;
+}
+body { background:#0a0a12; font-family:'JetBrains Mono','Fira Code',monospace; font-size:12px; color:var(--text); padding:24px; }
+.scene-label { font-size:10px; color:var(--text3); letter-spacing:0.1em; font-weight:600; margin-bottom:12px; text-transform:uppercase; }
+.shell { background:var(--bg); border:1px solid var(--border2); border-radius:8px; overflow:hidden; display:flex; flex-direction:column; height:620px; }
+.menubar { height:30px; background:#0d0d14; border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 12px; flex-shrink:0; }
+.menubar-title { color:var(--accent); font-weight:700; font-size:11px; letter-spacing:0.1em; margin-right:16px; }
+.menubar-item { color:var(--text2); font-size:11px; padding:0 8px; height:30px; display:flex; align-items:center; }
+.body-row { display:flex; flex:1; min-height:0; }
+.iconbar { width:48px; background:#0e0e18; border-right:1px solid var(--border); display:flex; flex-direction:column; align-items:center; padding:8px 0; flex-shrink:0; }
+.icon-btn { width:40px; height:36px; display:flex; align-items:center; justify-content:center; border-radius:4px; color:var(--text3); font-size:13px; position:relative; }
+.icon-btn.active { color:var(--text); }
+.icon-btn.active::before { content:''; position:absolute; left:-8px; top:50%; transform:translateY(-50%); width:2px; height:18px; background:var(--accent); border-radius:0 1px 1px 0; }
+.icon-btn-bot { margin-top:auto; }
+.sidebar { width:220px; background:var(--bg2); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+.sidebar-hdr { height:30px; padding:0 10px; display:flex; align-items:center; color:var(--text3); font-size:10px; letter-spacing:0.1em; font-weight:600; border-bottom:1px solid var(--border); }
+.tree { padding:4px 0; }
+.tree-item { height:24px; display:flex; align-items:center; padding:0 8px; gap:4px; color:var(--text2); font-size:11px; cursor:pointer; }
+.tree-item.active { background:rgba(255,255,255,0.08); color:var(--text); }
+.main { flex:1; display:flex; flex-direction:column; min-width:0; }
+.tabbar { height:35px; background:#0e0e18; border-bottom:1px solid var(--border); display:flex; align-items:stretch; flex-shrink:0; }
+.tab { display:flex; align-items:center; gap:5px; padding:0 12px 0 10px; border-right:1px solid var(--border); color:var(--text2); font-size:11px; position:relative; }
+.tab.active { background:var(--bg); color:var(--text); }
+.tab.active::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:var(--accent); }
+.tab .dot { color:var(--accent); font-size:9px; margin-right:-2px; }
+.page { flex:1; display:flex; flex-direction:column; min-height:0; overflow-y:auto; }
+.fml-header { padding:16px 20px 12px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.fml-header-row { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.fml-icon { width:28px; height:28px; background:rgba(99,102,241,0.22); border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:var(--accent2); }
+.fml-title { font-size:15px; font-weight:600; color:var(--text); }
+.fml-path { margin-left:auto; font-size:10px; color:var(--text3); }
+.fml-desc { font-size:11px; color:var(--text2); padding-left:38px; }
+.test-btn { font-size:10px; color:var(--text2); background:rgba(255,255,255,0.06); border:1px solid var(--border2); border-radius:4px; padding:3px 8px; }
+.fml-body { display:flex; flex:1; min-height:0; }
+.fml-left { flex:1; padding:16px 20px; border-right:1px solid var(--border); overflow-y:auto; display:flex; flex-direction:column; gap:20px; }
+.section-label { font-size:10px; color:var(--text3); letter-spacing:0.1em; font-weight:600; margin-bottom:8px; }
+
+/* formula input with error border */
+.formula-input-wrap { position:relative; }
+.formula-input {
+  background:var(--bg3); border:1px solid var(--red); border-radius:5px;
+  padding:10px 12px; font-family:inherit; font-size:12px; color:var(--text);
+  width:100%; outline:none; resize:none; min-height:40px; line-height:1.6;
+}
+/* inline highlighting inside formula display */
+.formula-display {
+  background:var(--bg3); border:1px solid var(--red); border-radius:5px;
+  padding:10px 12px; font-size:12px; line-height:1.6; min-height:40px;
+}
+.var-ok { color:var(--var-hi-text); background:var(--var-hi); border-radius:2px; padding:0 2px; }
+.var-err { color:var(--text); text-decoration:underline wavy var(--red); text-underline-offset:3px; }
+
+/* error message */
+.error-msg {
+  margin-top:6px;
+  display:flex; align-items:flex-start; gap:6px;
+  background:var(--red-bg); border:1px solid rgba(239,68,68,0.25);
+  border-radius:4px; padding:6px 10px;
+  font-size:10px; color:#fca5a5;
+  line-height:1.5;
+}
+.error-icon { color:var(--red); flex-shrink:0; font-size:11px; margin-top:0.5px; }
+
+.inputs-table { width:100%; border-collapse:collapse; }
+.inputs-table th { text-align:left; font-size:10px; color:var(--text3); font-weight:600; letter-spacing:0.08em; padding:0 8px 6px 0; border-bottom:1px solid var(--border); }
+.inputs-table td { padding:5px 8px 5px 0; border-bottom:1px solid var(--border); font-size:11px; color:var(--text); vertical-align:middle; }
+.inputs-table tr:last-child td { border-bottom:none; }
+.type-badge { display:inline-flex; align-items:center; background:var(--green-bg); color:var(--green); border-radius:3px; padding:1px 6px; font-size:10px; font-weight:600; }
+.del-btn { opacity:0; font-size:10px; color:var(--text3); cursor:pointer; padding:2px 4px; border-radius:3px; }
+.inputs-table tr:hover .del-btn { opacity:1; }
+.add-btn { display:inline-flex; align-items:center; gap:4px; font-size:10px; color:var(--text3); cursor:pointer; padding:4px 0; margin-top:6px; }
+
+/* duplicate error on input row */
+.input-name-err {
+  border:1px solid var(--red); border-radius:3px; padding:1px 4px;
+  color:var(--text); background:var(--red-bg);
+}
+
+.fml-right { width:220px; padding:16px; display:flex; flex-direction:column; gap:20px; flex-shrink:0; }
+.checkbox-row { display:flex; align-items:center; gap:6px; font-size:10px; color:var(--text2); margin-bottom:6px; }
+.checkbox { width:12px; height:12px; border:1px solid var(--border2); border-radius:2px; background:rgba(99,102,241,0.3); display:flex; align-items:center; justify-content:center; }
+.checkbox.checked::after { content:'✓'; font-size:9px; color:var(--accent2); }
+.output-val-err { background:var(--bg3); border:1px solid var(--border2); border-radius:4px; padding:5px 10px; font-size:11px; color:var(--text3); font-weight:600; }
+.katex-preview { background:var(--bg3); border:1px solid var(--border2); border-radius:5px; padding:10px 12px; font-size:12px; color:var(--text3); min-height:40px; display:flex; align-items:center; font-style:italic; }
+
+.statusbar { height:22px; background:var(--accent); display:flex; align-items:center; padding:0 10px; gap:12px; font-size:10px; color:rgba(255,255,255,0.85); flex-shrink:0; }
+.sb-right { margin-left:auto; display:flex; gap:12px; }
+.sb-dot { width:6px; height:6px; border-radius:50%; background:#4ade80; display:inline-block; margin-right:3px; }
+.err-count { color:#fca5a5; }
+</style>
+</head>
+<body>
+<div class="scene-label">06c — Formula Editor / バリデーションエラー状態</div>
+<div class="shell">
+  <div class="menubar">
+    <span class="menubar-title">formuflow</span>
+    <span class="menubar-item">File</span><span class="menubar-item">Edit</span>
+    <span class="menubar-item">View</span><span class="menubar-item">Run</span>
+  </div>
+  <div class="body-row">
+    <div class="iconbar">
+      <div class="icon-btn active">⊟</div>
+      <div class="icon-btn">⌕</div>
+      <div class="icon-btn" style="font-size:9px;font-weight:700;">DB</div>
+      <div class="icon-btn icon-btn-bot">⚙</div>
+    </div>
+    <div class="sidebar">
+      <div class="sidebar-hdr">COMPONENT TREE</div>
+      <div class="tree">
+        <div class="tree-item"><span style="width:8px"></span>▼<span style="margin-left:4px">user</span></div>
+        <div class="tree-item"><span style="width:20px"></span>▼<span style="margin-left:4px">formulas</span></div>
+        <div class="tree-item active"><span style="width:32px"></span><span style="color:var(--accent);font-size:10px">fx</span><span style="margin-left:4px">CalcGainBandwidth</span><span style="margin-left:auto;color:var(--accent);font-size:9px">●</span></div>
+      </div>
+    </div>
+    <div class="main">
+      <div class="tabbar">
+        <div class="tab active">
+          <span class="dot">●</span>
+          <span style="font-size:10px;color:var(--accent)">fx</span>
+          <span>CalcGainBandwi...</span>
+        </div>
+      </div>
+      <div class="page">
+        <div class="fml-header">
+          <div class="fml-header-row">
+            <div class="fml-icon">fx</div>
+            <span class="fml-title">CalcGainBandwidth</span>
+            <span class="fml-path">/formulas/calc_gain_bandwidth</span>
+            <div class="test-btn">⬡ Test</div>
+          </div>
+          <div class="fml-desc">トランジスタの利得帯域幅を計算する</div>
+        </div>
+        <div class="fml-body">
+          <div class="fml-left">
+            <!-- formula with error -->
+            <div>
+              <div class="section-label">式 (FORMULA)</div>
+              <div class="formula-display">
+                <span class="var-ok">ivChar</span>
+                <span style="color:var(--text2)"> + </span>
+                <span class="var-ok">vBias</span>
+                <span style="color:var(--text2)"> / </span>
+                <span class="var-err">gAin</span>
+                <span style="color:var(--text2)"> * </span>
+                <span class="var-err">offset</span>
+              </div>
+              <div class="error-msg">
+                <span class="error-icon">✕</span>
+                <span>未定義の変数: <strong>gAin</strong>, <strong>offset</strong>。引数 (INPUTS) に定義されていません。</span>
+              </div>
+            </div>
+
+            <!-- inputs with duplicate -->
+            <div>
+              <div class="section-label">引数 (INPUTS)</div>
+              <table class="inputs-table">
+                <thead><tr><th>変数名</th><th>型</th><th></th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td>ivChar</td>
+                    <td><span class="type-badge">Col ▾</span></td>
+                    <td><span class="del-btn">✕</span></td>
+                  </tr>
+                  <tr>
+                    <td>vBias</td>
+                    <td><span class="type-badge">F64 ▾</span></td>
+                    <td><span class="del-btn">✕</span></td>
+                  </tr>
+                  <tr>
+                    <td><span class="input-name-err">vBias</span></td>
+                    <td><span class="type-badge">F64 ▾</span></td>
+                    <td><span class="del-btn">✕</span></td>
+                  </tr>
+                  <tr>
+                    <td>gain</td>
+                    <td><span class="type-badge">F64 ▾</span></td>
+                    <td><span class="del-btn">✕</span></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="error-msg" style="margin-top:6px;">
+                <span class="error-icon">✕</span>
+                <span>変数名 <strong>vBias</strong> が重複しています。</span>
+              </div>
+              <div class="add-btn">＋ 引数を追加</div>
+            </div>
+          </div>
+
+          <div class="fml-right">
+            <div>
+              <div class="section-label">出力型</div>
+              <div class="checkbox-row"><div class="checkbox checked"></div>自動推論</div>
+              <div class="output-val-err">None</div>
+            </div>
+            <div>
+              <div class="section-label">KaTeX プレビュー</div>
+              <div class="katex-preview">— エラーのため表示できません</div>
+            </div>
+            <div>
+              <div class="section-label">KaTeX フォーマット</div>
+              <div class="checkbox-row"><div class="checkbox"></div>カスタムフォーマットを設定する</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="statusbar">
+    <span>formuflow</span><span style="color:rgba(255,255,255,0.5)">main</span>
+    <div class="sb-right">
+      <span class="err-count">✕ 3</span>
+      <span><span class="sb-dot"></span>DuckDB</span>
+      <span>UTF-8</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>

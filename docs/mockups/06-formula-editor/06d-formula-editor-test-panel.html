@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>06d — Formula Editor: Testパネル展開</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#111118; --bg2:#16161f; --bg3:#1c1c28;
+  --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14);
+  --text:#e2e2e8; --text2:#8888a0; --text3:#55556a;
+  --accent:#6366f1; --accent2:#a5b4fc;
+  --green:#4ade80; --green-bg:rgba(74,222,128,0.15);
+  --pass:#4ade80; --pass-bg:rgba(74,222,128,0.12);
+  --fail:#f43f5e; --fail-bg:rgba(244,63,94,0.12);
+}
+body { background:#0a0a12; font-family:'JetBrains Mono','Fira Code',monospace; font-size:12px; color:var(--text); padding:24px; }
+.scene-label { font-size:10px; color:var(--text3); letter-spacing:0.1em; font-weight:600; margin-bottom:12px; text-transform:uppercase; }
+.shell { background:var(--bg); border:1px solid var(--border2); border-radius:8px; overflow:hidden; display:flex; flex-direction:column; height:620px; }
+.menubar { height:30px; background:#0d0d14; border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 12px; flex-shrink:0; }
+.menubar-title { color:var(--accent); font-weight:700; font-size:11px; letter-spacing:0.1em; margin-right:16px; }
+.menubar-item { color:var(--text2); font-size:11px; padding:0 8px; height:30px; display:flex; align-items:center; }
+.body-row { display:flex; flex:1; min-height:0; }
+.iconbar { width:48px; background:#0e0e18; border-right:1px solid var(--border); display:flex; flex-direction:column; align-items:center; padding:8px 0; flex-shrink:0; }
+.icon-btn { width:40px; height:36px; display:flex; align-items:center; justify-content:center; border-radius:4px; color:var(--text3); font-size:13px; position:relative; }
+.icon-btn.active { color:var(--text); }
+.icon-btn.active::before { content:''; position:absolute; left:-8px; top:50%; transform:translateY(-50%); width:2px; height:18px; background:var(--accent); border-radius:0 1px 1px 0; }
+.icon-btn-bot { margin-top:auto; }
+.sidebar { width:220px; background:var(--bg2); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+.sidebar-hdr { height:30px; padding:0 10px; display:flex; align-items:center; color:var(--text3); font-size:10px; letter-spacing:0.1em; font-weight:600; border-bottom:1px solid var(--border); }
+.tree { padding:4px 0; }
+.tree-item { height:24px; display:flex; align-items:center; padding:0 8px; gap:4px; color:var(--text2); font-size:11px; }
+.tree-item.active { background:rgba(255,255,255,0.08); color:var(--text); }
+.main { flex:1; display:flex; flex-direction:column; min-width:0; }
+.tabbar { height:35px; background:#0e0e18; border-bottom:1px solid var(--border); display:flex; align-items:stretch; flex-shrink:0; }
+.tab { display:flex; align-items:center; gap:5px; padding:0 12px 0 10px; border-right:1px solid var(--border); color:var(--text2); font-size:11px; position:relative; }
+.tab.active { background:var(--bg); color:var(--text); }
+.tab.active::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:var(--accent); }
+.page { flex:1; display:flex; flex-direction:column; min-height:0; overflow-y:auto; }
+.fml-header { padding:16px 20px 12px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.fml-header-row { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.fml-icon { width:28px; height:28px; background:rgba(99,102,241,0.22); border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:var(--accent2); }
+.fml-title { font-size:15px; font-weight:600; color:var(--text); }
+.fml-path { margin-left:auto; font-size:10px; color:var(--text3); }
+.fml-desc { font-size:11px; color:var(--text2); padding-left:38px; }
+.test-btn-active { font-size:10px; color:var(--accent2); background:rgba(99,102,241,0.18); border:1px solid rgba(99,102,241,0.4); border-radius:4px; padding:3px 8px; }
+
+/* main+right panel layout */
+.content-row { display:flex; flex:1; min-height:0; }
+.fml-body { display:flex; flex:1; min-height:0; }
+.fml-left { flex:1; padding:16px 20px; border-right:1px solid var(--border); overflow-y:auto; display:flex; flex-direction:column; gap:20px; }
+.section-label { font-size:10px; color:var(--text3); letter-spacing:0.1em; font-weight:600; margin-bottom:8px; }
+.formula-display { background:var(--bg3); border:1px solid var(--border2); border-radius:5px; padding:10px 12px; font-size:12px; line-height:1.6; color:var(--text); }
+.var-ok { color:var(--accent2); background:rgba(99,102,241,0.2); border-radius:2px; padding:0 2px; }
+.inputs-table { width:100%; border-collapse:collapse; }
+.inputs-table th { text-align:left; font-size:10px; color:var(--text3); font-weight:600; letter-spacing:0.08em; padding:0 8px 6px 0; border-bottom:1px solid var(--border); }
+.inputs-table td { padding:5px 8px 5px 0; border-bottom:1px solid var(--border); font-size:11px; color:var(--text); vertical-align:middle; }
+.inputs-table tr:last-child td { border-bottom:none; }
+.type-badge { display:inline-flex; align-items:center; background:var(--green-bg); color:var(--green); border-radius:3px; padding:1px 6px; font-size:10px; font-weight:600; }
+.del-btn { opacity:0; font-size:10px; color:var(--text3); cursor:pointer; padding:2px 4px; }
+.inputs-table tr:hover .del-btn { opacity:1; }
+.add-btn { display:inline-flex; align-items:center; gap:4px; font-size:10px; color:var(--text3); cursor:pointer; padding:4px 0; margin-top:6px; }
+
+.fml-right-pane { width:220px; padding:16px; display:flex; flex-direction:column; gap:16px; flex-shrink:0; border-right:1px solid var(--border); overflow-y:auto; }
+.checkbox-row { display:flex; align-items:center; gap:6px; font-size:10px; color:var(--text2); margin-bottom:6px; }
+.checkbox { width:12px; height:12px; border:1px solid var(--border2); border-radius:2px; background:rgba(99,102,241,0.3); display:flex; align-items:center; justify-content:center; }
+.checkbox.checked::after { content:'✓'; font-size:9px; color:var(--accent2); }
+.output-val { background:var(--bg3); border:1px solid var(--border2); border-radius:4px; padding:5px 10px; font-size:11px; color:var(--green); font-weight:600; }
+.katex-preview { background:var(--bg3); border:1px solid var(--border2); border-radius:5px; padding:10px 12px; font-size:12px; color:var(--text2); min-height:40px; display:flex; align-items:center; }
+
+/* test panel */
+.test-panel {
+  width: 260px;
+  background: var(--bg2);
+  border-left: 1px solid var(--border2);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.test-panel-hdr {
+  height: 35px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.test-panel-title { font-size:11px; font-weight:600; color:var(--text); letter-spacing:0.04em; }
+.test-panel-close { font-size:11px; color:var(--text3); cursor:pointer; }
+.test-panel-close:hover { color:var(--text); }
+.test-panel-body { flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:10px; }
+
+.test-case {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius:5px;
+  overflow: hidden;
+}
+.test-case-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+}
+.test-case-name { color: var(--text2); }
+.badge-pass { background:var(--pass-bg); color:var(--pass); border-radius:3px; padding:1px 6px; font-size:9px; font-weight:600; }
+.badge-fail { background:var(--fail-bg); color:var(--fail); border-radius:3px; padding:1px 6px; font-size:9px; font-weight:600; }
+.test-case-body { padding:8px 10px; display:flex; flex-direction:column; gap:4px; }
+.test-row { display:flex; justify-content:space-between; align-items:center; font-size:10px; }
+.test-key { color:var(--text3); }
+.test-val { color:var(--text); font-family:inherit; }
+.test-divider { height:1px; background:var(--border); margin:4px 0; }
+.test-output { display:flex; justify-content:space-between; align-items:center; font-size:10px; }
+.test-output-key { color:var(--text3); }
+.test-output-expected { color:var(--text2); }
+.test-output-actual-pass { color:var(--pass); }
+.test-output-actual-fail { color:var(--fail); }
+
+.add-test-btn {
+  display: flex; align-items: center; justify-content: center; gap:4px;
+  background: rgba(255,255,255,0.04);
+  border: 1px dashed var(--border2);
+  border-radius:5px; padding:8px;
+  font-size:10px; color:var(--text3); cursor:pointer;
+}
+.add-test-btn:hover { color:var(--text2); border-color:rgba(255,255,255,0.2); }
+
+.run-all-btn {
+  margin: 0 12px 12px;
+  background: rgba(99,102,241,0.2);
+  border: 1px solid rgba(99,102,241,0.4);
+  border-radius:4px; padding:6px;
+  font-size:10px; color:var(--accent2); cursor:pointer;
+  text-align:center; font-family:inherit;
+}
+.run-all-btn:hover { background:rgba(99,102,241,0.3); }
+
+.statusbar { height:22px; background:var(--accent); display:flex; align-items:center; padding:0 10px; gap:12px; font-size:10px; color:rgba(255,255,255,0.85); flex-shrink:0; }
+.sb-right { margin-left:auto; display:flex; gap:12px; }
+.sb-dot { width:6px; height:6px; border-radius:50%; background:#4ade80; display:inline-block; margin-right:3px; }
+</style>
+</head>
+<body>
+<div class="scene-label">06d — Formula Editor / Testパネル展開状態（右パネル）</div>
+<div class="shell">
+  <div class="menubar">
+    <span class="menubar-title">formuflow</span>
+    <span class="menubar-item">File</span><span class="menubar-item">Edit</span>
+    <span class="menubar-item">View</span><span class="menubar-item">Run</span>
+  </div>
+  <div class="body-row">
+    <div class="iconbar">
+      <div class="icon-btn active">⊟</div>
+      <div class="icon-btn">⌕</div>
+      <div class="icon-btn" style="font-size:9px;font-weight:700;">DB</div>
+      <div class="icon-btn icon-btn-bot">⚙</div>
+    </div>
+    <div class="sidebar">
+      <div class="sidebar-hdr">COMPONENT TREE</div>
+      <div class="tree">
+        <div class="tree-item"><span style="width:8px"></span>▼<span style="margin-left:4px">user</span></div>
+        <div class="tree-item"><span style="width:20px"></span>▼<span style="margin-left:4px">formulas</span></div>
+        <div class="tree-item active"><span style="width:32px"></span><span style="color:var(--accent);font-size:10px">fx</span><span style="margin-left:4px">CalcGainBandwidth</span></div>
+      </div>
+    </div>
+    <div class="main">
+      <div class="tabbar">
+        <div class="tab active">
+          <span style="font-size:10px;color:var(--accent)">fx</span>
+          <span>CalcGainBandwi...</span>
+        </div>
+      </div>
+      <div class="page">
+        <div class="fml-header">
+          <div class="fml-header-row">
+            <div class="fml-icon">fx</div>
+            <span class="fml-title">CalcGainBandwidth</span>
+            <span class="fml-path">/formulas/calc_gain_bandwidth</span>
+            <div class="test-btn-active">⬡ Test</div>
+          </div>
+          <div class="fml-desc">トランジスタの利得帯域幅を計算する</div>
+        </div>
+        <div class="content-row">
+          <div class="fml-body">
+            <div class="fml-left">
+              <div>
+                <div class="section-label">式 (FORMULA)</div>
+                <div class="formula-display">
+                  <span class="var-ok">ivChar</span>
+                  <span style="color:var(--text2)"> + </span>
+                  <span class="var-ok">vBias</span>
+                  <span style="color:var(--text2)"> / </span>
+                  <span class="var-ok">gain</span>
+                </div>
+              </div>
+              <div>
+                <div class="section-label">引数 (INPUTS)</div>
+                <table class="inputs-table">
+                  <thead><tr><th>変数名</th><th>型</th><th></th></tr></thead>
+                  <tbody>
+                    <tr><td>ivChar</td><td><span class="type-badge">Col ▾</span></td><td><span class="del-btn">✕</span></td></tr>
+                    <tr><td>vBias</td><td><span class="type-badge">F64 ▾</span></td><td><span class="del-btn">✕</span></td></tr>
+                    <tr><td>gain</td><td><span class="type-badge">F64 ▾</span></td><td><span class="del-btn">✕</span></td></tr>
+                  </tbody>
+                </table>
+                <div class="add-btn">＋ 引数を追加</div>
+              </div>
+            </div>
+            <div class="fml-right-pane">
+              <div>
+                <div class="section-label">出力型</div>
+                <div class="checkbox-row"><div class="checkbox checked"></div>自動推論</div>
+                <div class="output-val">Col</div>
+              </div>
+              <div>
+                <div class="section-label">KaTeX プレビュー</div>
+                <div class="katex-preview" id="kp"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- test panel -->
+          <div class="test-panel">
+            <div class="test-panel-hdr">
+              <span class="test-panel-title">TEST</span>
+              <span class="test-panel-close">✕</span>
+            </div>
+            <div class="test-panel-body">
+              <!-- case 1: pass -->
+              <div class="test-case">
+                <div class="test-case-hdr">
+                  <span class="test-case-name">case 1</span>
+                  <span class="badge-pass">PASS</span>
+                </div>
+                <div class="test-case-body">
+                  <div class="test-row"><span class="test-key">ivChar</span><span class="test-val">[0.1, 0.2, 0.3]</span></div>
+                  <div class="test-row"><span class="test-key">vBias</span><span class="test-val">1.5</span></div>
+                  <div class="test-row"><span class="test-key">gain</span><span class="test-val">3.0</span></div>
+                  <div class="test-divider"></div>
+                  <div class="test-output">
+                    <span class="test-output-key">期待値</span>
+                    <span class="test-output-expected">[0.6, 0.7, 0.8]</span>
+                  </div>
+                  <div class="test-output">
+                    <span class="test-output-key">実行結果</span>
+                    <span class="test-output-actual-pass">[0.6, 0.7, 0.8]</span>
+                  </div>
+                </div>
+              </div>
+              <!-- case 2: fail -->
+              <div class="test-case">
+                <div class="test-case-hdr">
+                  <span class="test-case-name">case 2</span>
+                  <span class="badge-fail">FAIL</span>
+                </div>
+                <div class="test-case-body">
+                  <div class="test-row"><span class="test-key">ivChar</span><span class="test-val">[1.0, 2.0]</span></div>
+                  <div class="test-row"><span class="test-key">vBias</span><span class="test-val">2.0</span></div>
+                  <div class="test-row"><span class="test-key">gain</span><span class="test-val">4.0</span></div>
+                  <div class="test-divider"></div>
+                  <div class="test-output">
+                    <span class="test-output-key">期待値</span>
+                    <span class="test-output-expected">[1.5, 2.5]</span>
+                  </div>
+                  <div class="test-output">
+                    <span class="test-output-key">実行結果</span>
+                    <span class="test-output-actual-fail">[1.6, 2.6]</span>
+                  </div>
+                </div>
+              </div>
+              <div class="add-test-btn">＋ テストケースを追加</div>
+            </div>
+            <button class="run-all-btn">▶ すべて実行</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="statusbar">
+    <span>formuflow</span><span style="color:rgba(255,255,255,0.5)">main</span>
+    <div class="sb-right"><span><span class="sb-dot"></span>DuckDB</span><span>UTF-8</span></div>
+  </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  function render() {
+    if (typeof katex === 'undefined') { setTimeout(render, 50); return; }
+    try { katex.render('ivChar + \\frac{vBias}{gain}', document.getElementById('kp'), { throwOnError: false }); }
+    catch(e) {}
+  }
+  render();
+});
+</script>
+</body>
+</html>

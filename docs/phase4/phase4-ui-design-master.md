@@ -211,12 +211,66 @@ Component
 
 ## 7. Formulaエディタの方針
 
-Formulaエディタは共通UI。ビルトインはComponentツリーの `/builtin/math` `/builtin/sql` に整理されており、使う人だけ使う。モード切替・権限分離の概念は不要。
+詳細仕様: `docs/spec/06-formula-editor.md`
 
-| 種別 | UIの形 |
-|---|---|
-| 汎用計算式 | テキストエディタ（Excel式ライク） |
-| SQL系ビルトイン呼び出し | フォーム寄りのUI（FilterCondition等の専用入力） |
+### Formula vs Built-in の分離
+
+FormulaとBuilt-inは内部的に別物。
+
+| 種別 | 内部実装 | エディタUI |
+|---|---|---|
+| ユーザー定義Formula | AST / SQLコンパイル | 編集可能（フル機能） |
+| Built-in Formula | GoまたはSQL直接定義 | 読み取り専用（`B` バッジ表示） |
+
+Built-inはComponentツリーの `/builtin/math` `/builtin/sql` に整理。ツリーアイコンに `B` バッジを付けて区別。ページは表示するが全フィールド読み取り専用、ヘッダー下に「Built-in Formula は編集できません」バナーを固定表示。
+
+### Formulaの責務
+
+Formulaはプリミティブな計算のみを定義する。他のFormula・Flowへの参照は不可。複数Componentの組み合わせはFlowで行う。
+
+### ページ構成
+
+タブ: `FORMULA`（メイン編集）/ `TEST`（単体テスト）
+
+左ペイン: 式入力・引数定義  
+右ペイン: 出力型・KaTeXプレビュー・KaTeXフォーマット
+
+### 引数（INPUTS）
+
+- 変数名・型のペアで定義。型デフォルトは `F64`
+- 変数名重複不可。KaTeXに影響する文字（`\`, `{`, `}`, `^`, `_`等）は不可
+- D&Dで並び替え可。順番がFlowキャンバスのport順に反映
+- row hover時に `✕` で削除
+
+### 式入力
+
+- リアルタイムバリデーション
+- 定義済み変数名 → 青ハイライト
+- 未定義変数名 → 白字 + 赤波線
+- エラーメッセージは式エリア直下に表示
+- 確定タイミング: フォーカスアウト / Enter
+
+### 出力型
+
+- デフォルト: 自動推論（チェックON）→ 推論結果を表示（編集不可）
+- チェックOFF → プルダウンで手動選択（選択肢はPhase 5で確定）
+- 推論できない場合は `None`
+
+### KaTeXフォーマット（オプション）
+
+- 「カスタムフォーマットを設定する」チェックでオプトイン（デフォルトOFF）
+- LaTeX記法で記述。例: `ivChar + \frac{vBias}{gain}`
+- 引数の変数名を内部IDで追跡 → リネーム時に自動置換
+
+### 参照元通知・保存時警告
+
+- 参照元FlowComponentがある場合、タイトル下にバーで表示（リンクで飛べる）
+- 引数の追加・削除・型変更があった場合、publish時に確認ダイアログ
+- 保存後に不整合が生じたFlowはツリー上でタイトルを赤字表示
+
+### タイトル変更の反映
+
+タイトル変更は参照元FlowComponentのノードタイトルにリアルタイム反映。内部参照はUUIDのため安全。
 
 ### Condition型の2種類
 
@@ -347,3 +401,4 @@ Formulaエディタは共通UI。ビルトインはComponentツリーの `/built
 | 2026-04-02 | Condition型を2種類に分離（FilterCondition/BranchCondition）。Map/Zipのコンテナ型ノード表現確定。未決#1・#5クローズ。ColumnRefs型UI未決#6として追加 |
 | 2026-04-02 | 全未決クローズ。DefaultReturnをConstsと同構造に確定。ColumnRefsは型として整理。表示APIはスコープ外に。 |
 | 2026-04-05 | レイアウト寸法追加（VSCode準拠）。タブバー挙動確定。デバッグパネル仕様追加（PROBLEMS/SQL/IRタブ・PROBLEMSフォーマット・フォーカス挙動）。エッジ値UI表示確定（scalar直接表示・配列系overlayパネル）。保存モデル追加（draft/published・Ctrl-S・undo/redo・再開モーダル・●インジケータ）。実行コンテキスト2系統確定（UIはdraft・APIはpublished）。ComponentJSONシリアライズ可能制約を記録（Phase 5制約）。 |
+| 2026-04-06 | セクション7 Formulaエディタを全面更新。Formula vs Built-in の分離確定（内部実装・UIとも別物）。Formulaはプリミティブ計算のみ・他Formula/Flow参照不可を明記。引数定義UI（+ボタン・D&D並び替え・✕削除・型デフォルトF64）確定。式バリデーション（リアルタイム・色分け）確定。出力型（自動推論チェックON/OFF）確定。KaTeXフォーマットオプトイン確定。参照元通知バー・保存時警告ダイアログ・ツリー赤字表示追加。タイトル変更のリアルタイム反映確定。TESTタブ追加（DefaultInputと同構造）。 |

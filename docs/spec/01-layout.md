@@ -148,13 +148,14 @@ Flowキャンバス上の各ノードにhover時に表示。
 
 ### 表示コンテキスト
 
-| コンテキスト | 発火イベント |
-|---|---|
-| Formula Inspect | ノードの👁クリック |
-| 配列系エッジ値 | 配列系エッジの値アイコンクリック |
-| ノードプロパティ編集 | ノードのプロパティアイコンクリック（将来） |
+| コンテキスト | `?rightPanel=` | 発火イベント | 対象ページ |
+|---|---|---|---|
+| Formula Inspect | `inspect` | Flowキャンバス上ノードの👁クリック | `/flows/:id` |
+| Formula Test | `test` | Formulaページヘッダー右端のTestボタンクリック | `/formulas/:id` |
+| 配列系エッジ値 | `edge-value` | 配列系エッジの値アイコンクリック | `/flows/:id` |
+| ノードプロパティ編集 | `node-props` | ノードのプロパティアイコンクリック（将来） | `/flows/:id` |
 
-> URL制御: `?rightPanel=inspect&nodeId=xxx` 形式。将来のコンテキスト追加も同じ仕組みで対応。
+> URL制御: `?rightPanel=test&formulaId=xxx` 形式。コンテキスト追加も同じ仕組みで対応。
 
 ---
 
@@ -227,7 +228,7 @@ UIの各エリアの表示状態はURLで完全に表現できる。これによ
 | パス（`/{mainPage}`） | メインエリア（タブ） | `/flows/:id` `/formulas/:id` `/dbtables/:id` `/inputs/:id` |
 | `?panel=` | サイドパネル（アイコンバー選択） | `tree` `search` `db` `settings` |
 | `?debug=` | デバッグパネルのアクティブタブ | `problems` `sql` `ir`（なければ閉じた状態） |
-| `?rightPanel=` | 右パネルのコンテキスト | `inspect` `edge-value` `node-props` |
+| `?rightPanel=` | 右パネルのコンテキスト | `inspect` `test` `edge-value` `node-props` |
 | `?rightTarget=` | 右パネルの対象ID | ノードID・エッジID等 |
 
 ### 具体例
@@ -242,8 +243,8 @@ UIの各エリアの表示状態はURLで完全に表現できる。これによ
 # IT向け：SQLタブ開
 /flows/get_iv_char?panel=tree&debug=sql
 
-# Formulaページ、検索パネル開、Inspectパネル開
-/formulas/calc_gain?panel=search&rightPanel=inspect&rightTarget=node_abc
+# Formulaページ、Testパネル開
+/formulas/calc_gain?panel=tree&rightPanel=test&rightTarget=calc_gain
 
 # DBTable設定、パネル閉
 /dbtables/transistor_iv_table
