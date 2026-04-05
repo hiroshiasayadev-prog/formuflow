@@ -100,6 +100,22 @@ body {
 .katex-toggle-btn.katex-off:hover {
   color: rgba(255,255,255,0.5);
 }
+.delete-mode-btn {
+  right: 116px;
+}
+.delete-mode-btn.delete-on {
+  color: #ef4444;
+  border-color: rgba(239,68,68,0.4);
+  background: rgba(239,68,68,0.1);
+}
+.canvas.delete-mode,
+.canvas.delete-mode * {
+  cursor: not-allowed !important;
+}
+body.delete-mode,
+body.delete-mode * {
+  cursor: not-allowed !important;
+}
 
 /* ── node katex strip ── */
 .node-katex {
@@ -358,7 +374,7 @@ body {
   padding: 2px 5px;
   border-radius: 4px;
   border: 1px solid rgba(74,222,128,0.25);
-  pointer-events: none;
+  pointer-events: auto;
   transform: translate(-50%, -50%);
 }
 .edge-error-mark {
@@ -399,6 +415,7 @@ body {
   <!-- fit button -->
   <button class="fit-btn" title="全体フィット">⊡</button>
   <button class="fit-btn katex-toggle-btn" id="katex-toggle" title="KaTeX表示切替">KaTeX</button>
+  <button class="fit-btn delete-mode-btn" id="delete-mode" title="削除モード">Delete</button>
 
   <!-- SVG edge layer -->
   <svg class="edge-layer" id="edgeLayer"></svg>
@@ -703,7 +720,7 @@ function pathStr(seg) {
   return `M ${seg[0].x},${seg[0].y} C ${seg[1].x},${seg[1].y} ${seg[2].x},${seg[2].y} ${seg[3].x},${seg[3].y}`;
 }
 
-function drawEdgeSplit(from, to, color, label, isError) {
+function drawEdgeSplit(from, to, color, label, isError, edgeId) {
   const P   = bezierPath(from, to);
   const gap = 10;
   const d   = dist(from, to);
@@ -718,6 +735,8 @@ function drawEdgeSplit(from, to, color, label, isError) {
     p.setAttribute('fill', 'none');
     p.setAttribute('stroke', color);
     p.setAttribute('stroke-width', '1.5');
+    p.style.cursor = 'pointer';
+    if (edgeId != null) p.dataset.edgeId = edgeId;
     svg.appendChild(p);
   }
 
@@ -726,6 +745,8 @@ function drawEdgeSplit(from, to, color, label, isError) {
   const badge = document.createElement('div');
   badge.className = 'edge-badge';
   badge.textContent = label;
+  badge.style.cursor = 'pointer';
+  if (edgeId != null) badge.dataset.edgeId = edgeId;
   if (isError) {
     badge.style.color      = '#6b7280';
     badge.style.background = 'rgba(107,114,128,0.15)';
@@ -762,14 +783,15 @@ function redrawEdges() {
   }
 
   // dynamic
-  for (const e of dynamicEdges) {
+  for (let i = 0; i < dynamicEdges.length; i++) {
+    const e = dynamicEdges[i];
     const from = getHandlePosById(e.fromId);
     const to   = getHandlePosById(e.toId);
     if (!from || !to) continue;
     const compat = typeCompat(e.fromType, e.toType);
     const isErr  = compat === 'error';
     const label  = compat === 'ok' ? e.fromType : `${e.fromType}→${e.toType}`;
-    drawEdgeSplit(from, to, EDGE_COLOR[compat], label, isErr);
+    drawEdgeSplit(from, to, EDGE_COLOR[compat], label, isErr, `dyn-${i}`);
   }
 }
 
@@ -983,27 +1005,68 @@ function updateContainerOutput() {
     badge.textContent    = newType;
   });
 }
+// globals for canvas/delete mode
+let deleteMode = false;
+const canvas = document.getElementById('canvas');
+const deleteModeBtn = document.getElementById('delete-mode');
+
 let draggingNode = null, ox = 0, oy = 0;
+
 document.querySelectorAll('.node').forEach(n => {
   n.addEventListener('mousedown', e => {
-    if (e.target.classList.contains('handle')) return;
-    // slotの中のノードは親containerを動かさない
+    if (e.target.closest('.handle')) return;
+
+    // delete modeならmousedown時点で即削除
+    if (deleteMode) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!n.closest('.container-slot')) {
+        n.remove();
+        if (!e.shiftKey) exitDeleteMode();
+        redrawEdges();
+      }
+      return;
+    }
+
     if (n.closest('.container-slot')) return;
+
     draggingNode = n;
     const r = n.getBoundingClientRect();
     ox = e.clientX - r.left;
     oy = e.clientY - r.top;
     e.preventDefault();
   });
+
+  n.addEventListener('click', e => {
+    if (e.target.closest('.handle')) return;
+    if (deleteMode) {
+      // mousedownで処理済み。ここでは何もしない
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    document.querySelectorAll('.node').forEach(x => x.classList.remove('selected'));
+    n.classList.add('selected');
+  });
+
+  n.addEventListener('dblclick', e => {
+    if (e.target.closest('.handle')) return;
+    if (n.closest('.container-slot')) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    n.remove();
+    redrawEdges();
+  });
 });
 
 document.addEventListener('mousemove', e => {
   if (!draggingNode) return;
-  const cr = document.getElementById('canvas').getBoundingClientRect();
+  const cr = canvas.getBoundingClientRect();
   draggingNode.style.left = (e.clientX - cr.left - ox) + 'px';
   draggingNode.style.top  = (e.clientY - cr.top  - oy) + 'px';
 
-  // slot hover highlight
   document.querySelectorAll('.container-slot').forEach(slot => {
     const sr = slot.getBoundingClientRect();
     const over = e.clientX >= sr.left && e.clientX <= sr.right
@@ -1019,7 +1082,6 @@ document.addEventListener('mouseup', e => {
   const node = draggingNode;
   draggingNode = null;
 
-  // slotにドロップ判定
   document.querySelectorAll('.container-slot').forEach(slot => {
     slot.classList.remove('drag-over');
     if (slot.classList.contains('filled')) return;
@@ -1037,19 +1099,113 @@ document.addEventListener('mouseup', e => {
   redrawEdges();
 });
 
-// ── selection ──
-document.querySelectorAll('.node').forEach(n => {
-  n.addEventListener('click', e => {
-    if (e.target.classList.contains('handle')) return;
-    document.querySelectorAll('.node').forEach(x => x.classList.remove('selected'));
-    n.classList.add('selected');
-  });
-});
-document.getElementById('canvas').addEventListener('click', e => {
-  if (!e.target.closest('.node'))
-    document.querySelectorAll('.node').forEach(x => x.classList.remove('selected'));
+// ── Delete mode ──
+function enterDeleteMode() {
+  deleteMode = true;
+  deleteModeBtn.classList.add('delete-on');
+  canvas.classList.add('delete-mode');
+  document.body.classList.add('delete-mode');
+  document.body.style.cursor = 'not-allowed';
+}
+function exitDeleteMode() {
+  deleteMode = false;
+  deleteModeBtn.classList.remove('delete-on');
+  canvas.classList.remove('delete-mode');
+  document.body.classList.remove('delete-mode');
+  document.body.style.cursor = '';
+}
+
+deleteModeBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (deleteMode) exitDeleteMode();
+  else enterDeleteMode();
 });
 
+document.addEventListener('mousemove', () => {
+  if (deleteMode) document.body.style.cursor = 'not-allowed';
+});
+
+canvas.addEventListener('click', e => {
+  if (!deleteMode) {
+    if (!e.target.closest('.node')) {
+      document.querySelectorAll('.node').forEach(x => x.classList.remove('selected'));
+    }
+    return;
+  }
+
+  if (e.target.closest('.fit-btn')) return;
+
+  const badge = e.target.closest('.edge-badge');
+  if (badge && badge.dataset.edgeId?.startsWith('dyn-')) {
+    const idx = parseInt(badge.dataset.edgeId.replace('dyn-', ''), 10);
+    dynamicEdges.splice(idx, 1);
+    if (!e.shiftKey) exitDeleteMode();
+    redrawEdges();
+    return;
+  }
+
+  const path = e.target.closest('path');
+  if (path && path.dataset.edgeId?.startsWith('dyn-')) {
+    const idx = parseInt(path.dataset.edgeId.replace('dyn-', ''), 10);
+    dynamicEdges.splice(idx, 1);
+    if (!e.shiftKey) exitDeleteMode();
+    redrawEdges();
+    return;
+  }
+
+  if (!e.target.closest('.node')) {
+    exitDeleteMode();
+  }
+});
+
+canvas.addEventListener('dblclick', e => {
+  const badge = e.target.closest('.edge-badge');
+  if (badge && badge.dataset.edgeId?.startsWith('dyn-')) {
+    const idx = parseInt(badge.dataset.edgeId.replace('dyn-', ''), 10);
+    dynamicEdges.splice(idx, 1);
+    redrawEdges();
+    return;
+  }
+
+  const node = e.target.closest('.node');
+  if (node && !node.closest('.container-slot')) {
+    e.preventDefault();
+    e.stopPropagation();
+    node.remove();
+    redrawEdges();
+  }
+});
+
+
+
+// ── hard delete delegation (capture) ──
+canvas.addEventListener('mousedown', e => {
+  if (!deleteMode) return;
+  if (e.target.closest('.fit-btn')) return;
+  if (e.target.closest('.handle')) return;
+
+  const node = e.target.closest('.node');
+  if (node && !node.closest('.container-slot')) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    node.remove();
+    if (!e.shiftKey) exitDeleteMode();
+    redrawEdges();
+  }
+}, true);
+
+canvas.addEventListener('dblclick', e => {
+  if (e.target.closest('.handle')) return;
+
+  const node = e.target.closest('.node');
+  if (node && !node.closest('.container-slot')) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    node.remove();
+    redrawEdges();
+  }
+}, true);
 // ── KaTeX toggle ──
 let katexVisible = true;
 document.getElementById('katex-toggle').addEventListener('click', () => {

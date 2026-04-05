@@ -158,3 +158,38 @@ container-body
 - 型チェックロジック: 本設計はPhase 5
 - Map/Zipのaxis指定UI（複数inputのどれをarray軸にするか）
 - slotからformulaを取り外す操作
+
+---
+
+## 削除操作
+
+### ダブルクリック削除（常時）
+- nodeをダブルクリック → 削除
+- dynamic edgeのバッジをダブルクリック → そのedge削除
+
+### Deleteモード
+- 右上 `[Delete]` ボタンクリック → モードON（ボタンが赤くなる、カーソルが`not-allowed`）
+- モード中の挙動:
+  - nodeクリック → 削除、Shiftなし → 即モードOFF
+  - nodeクリック → 削除、Shift押しっぱ → モード継続
+  - dynamic edgeのバッジ/線クリック → 削除、同上
+  - node/edge以外クリック → モードOFF
+  - `[Delete]`ボタン再クリック → モードOFF
+
+### edgeの当たり判定（現状と将来）
+- 現状（モック）: 型バッジのみ当たり判定あり。edge線自体は細すぎて実用的でない
+- 本実装（ReactFlow）: edge線の周辺数pxにも当たり判定をつける
+
+---
+
+## 将来実装（Phase 6）
+
+- 選択中Componentに`Ctrl+C / Ctrl+V / Delete key`
+- 範囲選択→複数Component一括操作（ドラッグで矩形選択）
+- 範囲選択内のedgeのみcopy+paste反映
+  - 範囲外Componentへのedgeはpaste時に消える
+
+### formulaの分離
+
+- slotにはめたformulaノードをドラッグしてコンテナ枠外にドロップ → slotから分離、通常のキャンバスノードに戻る
+- 分離時: containerのinput/outputを消去、タイトルを`Map`に戻す、slotを空状態（`drop formula here`）に戻す
