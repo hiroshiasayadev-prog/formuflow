@@ -152,8 +152,37 @@ docs/doc-policy.md を読み、Front Matter仕様に従って、指定されたd
 
 1. `docs/doc-policy.md`（このdoc）を読む
 2. `docs/changes/BREAKING_CHANGES.md`を読み、`[ ]`（未反映）の項目を確認する
-3. `docs/phase4/phase4-ui-design-master.md`のFront Matterとsummaryを読む
-4. 作業に必要なdocのFront Matterだけを読み、必要なものだけ全文取得する
+3. 必要なdocのFront Matter（`---`ブロック）を確認し、必要なものだけ全文取得する
+
+### md-sectionを使ったdoc読み込みパターン
+
+`md-section` MCPツールを使うとmdファイルのセクションをピンポイントで取得できる。全文読みより大幅にtokenを節約できる。
+
+**基本パターン:**
+
+```
+# 1. 見出し一覧を取得（構造把握）
+md-section:list_headings
+  path: C:\Users\imved\projects\formuflow\docs\spec\06-formula-editor.md
+
+# 2. 必要なセクションだけ取得（部分一致でOK、#不要）
+md-section:read_section
+  path: C:\Users\imved\projects\formuflow\docs\spec\06-formula-editor.md
+  heading: 保存
+  include_subheadings: true  # デフォルトtrue。サブ見出しも含む
+```
+
+**推奨アクセス手順:**
+
+1. `filesystem:read_text_file` + `head: 80` でFront Matter（`---`ブロック）だけ読む
+2. `md-section:list_headings` で見出し一覧を把握する
+3. `md-section:read_section` で必要なセクションだけ取得する
+4. それでも足りない場合のみ全文取得する
+
+**使いどころ:**
+- 特定の決定事項だけ確認したい場合（例:「保存モデルの仕様だけ見たい」）
+- 複数docをまたいで関連セクションだけ集めたい場合
+- 変更の波及範囲を確認するために`depends_on`先のdocの一部だけ確認したい場合
 
 ### 変更ログを書くタイミング
 
