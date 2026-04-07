@@ -1,3 +1,27 @@
+---
+scope: docs/spec/03-component-nodes.md
+status: confirmed
+last_updated: 2026-04-06
+summary: >
+  Flowキャンバス上に配置される全Component種別のノードUI仕様。
+  共通ノード構造・カラーテーマ・型バッジ・ハンドルスタイルと、
+  各Component種別（Formula/Flow/Const/Consts/DatabaseTable/
+  DefaultInput/DefaultReturn/Map/Zip）の個別仕様を定義する。
+key_decisions:
+  - アクセントカラーはheader背景・アイコン・name色のみに適用（ポート・バッジ・エッジには使わない）
+  - 型バッジはComponent種別カラーと完全分離し緑統一（#4ade80）
+  - FormulaノードのみKaTeXエリアをheader下に挿入（data-katex属性でLaTeX保持）
+  - Map/ZipコンテナはFormulaドロップ前後でポート構成が動的に変化
+  - DefaultReturnはoutputなし・DefaultInputはinputなし
+depends_on:
+  - docs/spec/02-flow-canvas.md   # Map/ZipコンテナUI詳細・ハンドルD&D挙動
+related_specs:
+  - docs/spec/06-formula-editor.md  # FormulaコンポーネントのKaTeX・引数定義
+open_issues:
+  - 型表記の詳細（Col[F64]等の型パラメータ）はPhase 5で確定
+  - ノードのリサイズ対応
+---
+
 # 03 — Componentノード全種 仕様
 
 対応モック: `docs/mockups/02-flow-canvas.html`（02と同一ファイルに全種収録）

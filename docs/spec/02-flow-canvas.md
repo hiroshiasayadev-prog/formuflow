@@ -1,3 +1,29 @@
+---
+scope: docs/spec/02-flow-canvas.md
+status: confirmed
+last_updated: 2026-04-06
+summary: >
+  Flowキャンバスのインタラクション仕様。ノード構造・カラーテーマ・エッジ型チェック表示・
+  ハンドルD&Dフィードバック・Map/Zipコンテナノード・削除モードを定義する。
+  ダブルクリックはタブ遷移（削除ではない）。削除はDeleteモード専用。
+key_decisions:
+  - ダブルクリック = 該当ComponentをタブでOpen（削除操作ではない）
+  - 削除はDeleteモードボタン専用（赤ボタンON時のみクリックで削除）
+  - 型バッジ・エッジカラーはComponent種別カラーと分離し緑統一
+  - エッジ接続D&D開始時に全handleの型互換性をリアルタイムフィードバック
+  - Map/ZipコンテナはformulaドロップでI/Oポートを動的生成
+  - KaTeXシンボルのON/OFFはキャンバス右上ボタンで切り替え
+depends_on:
+  - docs/spec/01-layout.md   # タブ遷移・右パネル仕様
+related_specs:
+  - docs/spec/03-component-nodes.md  # Component型の詳細定義
+  - docs/spec/05-tabs-navigation.md  # タブ遷移の挙動
+open_issues:
+  - 型表記の詳細（Col[F64]等の型パラメータ）はPhase 5で確定
+  - Map/Zipのaxis指定UI（複数inputのarray軸指定）はPhase 5以降
+  - slotからformulaを取り外す操作の詳細設計
+---
+
 # 02 — Flowキャンバス仕様
 
 対応モック: `docs/mockups/02-flow-canvas.html`

@@ -1,3 +1,27 @@
+---
+scope: docs/spec/01-layout.md
+status: confirmed
+last_updated: 2026-04-06
+summary: >
+  アプリ全体のレイアウト仕様。VSCode型の5エリア構成（アイコンバー・サイドパネル・
+  メインエリア・右パネル・デバッグパネル）を定義する。各エリアの寸法・挙動・
+  リサイズルール、右パネルのコンテキスト種別とURL制御方式を規定する。
+key_decisions:
+  - VSCode型レイアウト（アクティビティバー準拠）を採用
+  - 右パネルは ?rightPanel= クエリパラメータで制御（inspect / test / edge-value / node-props）
+  - サイドパネル・右パネルはオーバーレイではなくメインエリアを押し広げる
+  - 保存モデルは draft / published の2状態。draft は自動送信、published は Ctrl-S
+  - URLで全エリアの表示状態を表現可能（タブの複数開き状態はsessionStorageで管理）
+  - デバッグパネルの SQL / IR タブは View > Show Debug 有効時のみ表示（IT向け）
+depends_on: []
+related_specs:
+  - docs/spec/04-sidebar.md       # アイコンバー・サイドパネルの詳細
+  - docs/spec/05-tabs-navigation.md  # タブバー挙動の詳細
+  - docs/spec/06-formula-editor.md   # 右パネル（Testパネル）の利用元
+  - docs/phase4/phase4-ui-design-master.md
+open_issues: []
+---
+
 # 01 — アプリ全体レイアウト仕様
 
 対応モック: `docs/mockups/01-layout.html`

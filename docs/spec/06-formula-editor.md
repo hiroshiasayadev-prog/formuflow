@@ -1,3 +1,29 @@
+---
+scope: docs/spec/06-formula-editor.md
+status: confirmed
+last_updated: 2026-04-06
+summary: >
+  Formula編集ページ（/formulas/:id）のUI仕様。引数定義・式バリデーション・
+  KaTeXプレビュー・右パネルからのTestパネル・Built-in読み取り専用・
+  保存時の警告ダイアログと影響行Flowの赤字表示を定義する。
+key_decisions:
+  - 引数定義を先に行い、式バリデーションに利用する（定義済変数=青、未定義=白字+赤波線）
+  - KaTeXはオプトイン（デフォルトOFF）．カスタムフォーマットは別項チェックボックスで切り替え
+  - Built-inは読み取り専用（Bバッジ+入力不可バナー表示）
+  - Testパネルは右パネル（?rightPanel=test）としてトグル
+  - 引数変更時のpublishはダイアログ確認→影響あるFlowをツリーで赤字表示
+  - 出力型はデフォルト自動推論（手動切り替え可）
+depends_on:
+  - docs/spec/01-layout.md            # 右パネル（?rightPanel=test）の共通仕様
+  - docs/spec/05-tabs-navigation.md   # タブ構成・ページ遷移
+related_specs:
+  - docs/spec/09-default-input.md     # Testパネルの構造共通化の参照先
+  - docs/phase4/phase4-ui-design-master.md
+open_issues:
+  - 出力型・引数型のプルダウン選択肢（Phase 5で確定）
+  - 型不整合バリデーションロジックの詳細（Phase 5）
+---
+
 # 06 — Formulaエディタ仕様
 
 対応モック: `docs/mockups/06-formula-editor.html`

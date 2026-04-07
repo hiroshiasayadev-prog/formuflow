@@ -1,3 +1,27 @@
+---
+scope: docs/spec/04-sidebar.md
+status: confirmed
+last_updated: 2026-04-06
+summary: >
+  左端アイコンバーと各サイドパネルの仕様。パネルは4種（Componentツリー・検索・DB接続・Extensions）。
+  ツリーのエントリ状態表示・削除ルール・PACKAGESセクション・
+  DB接続管理・Contribマーケットプレイスを定義する。
+key_decisions:
+  - VSCodeアクティビティバー準拠（機能系上侧・設定系下側の2領域分割）
+  - 設定系アイコン（⚙）はサイドパネルを開かずポップアップメニューを表示
+  - DB接続は当面PostgreSQLのみ（SnowflakeはDuckDB公式コネクター指定濃により非対応）
+  - ツリーのComponent削除は参照先があればブロック（参照先一覧を表示）
+  - PACKAGESセクションは読み取り専用（インストール済contribsを表示）
+  - DB接続ステータスは常時ポーリングなし（手動確認 or 処理のついでに更新）
+depends_on:
+  - docs/spec/01-layout.md   # アイコンバー・サイドパネルの共通仕様
+related_specs:
+  - docs/spec/05-tabs-navigation.md  # ダブルクリックで開くタブの挙動
+open_issues:
+  - ユーザーアイコン（👤）はACL対応時に追加（現設計は将来）
+  - Snowflakeコネクター対応時期は未定
+---
+
 # 04 — 左端アイコンバー＋サイドパネル仕様
 
 対応モック:

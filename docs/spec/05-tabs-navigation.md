@@ -1,3 +1,28 @@
+---
+scope: docs/spec/05-tabs-navigation.md
+status: confirmed
+last_updated: 2026-04-06
+summary: >
+  タブバーおよびページ遷移の仕様。VSCode準拠のタブ挙動・重複抑制・アクティブタブの
+  トップライン（Component種別カラー）・タブを開くトリガー・全Component種別の
+  パス対応表を定義する。DefaultReturnは専用編集ページなし。
+key_decisions:
+  - 全Component種別はタブで開いて編集（インライン編集・右パネル編集は不採用）
+  - アクティブタブの上端トップライン（1px）はComponent種別カラーで表示（アクセント色固定ではない）
+  - 同一IDのページが既存タブにあればそのタブをアクティブ化（新規タブは開かない）
+  - DefaultReturnは専用編集ページなし・右パネルも使わない（キャンバス上の操作のみ）
+  - タブの複数開き状態はsessionStorageで管理（URLは現在アクティブタブのみ表現）
+  - 新規タブはアクティブタブの右隣に挿入
+depends_on:
+  - docs/spec/01-layout.md   # タブバーの共通仕様・URLルーティング
+related_specs:
+  - docs/spec/02-flow-canvas.md   # キャンバスからのタブ遷移トリガー
+  - docs/spec/04-sidebar.md       # ツリーからのタブ遷移トリガー
+open_issues:
+  - D&Dによるタブ並び替えはPhase 6実装予定
+  - タブ分割（スプリット）は将来実装（URL設計は未確定）
+---
+
 # 05 — タブバー＋ページ遷移 仕様
 
 対応モック: `docs/mockups/05-tabs-navigation`
