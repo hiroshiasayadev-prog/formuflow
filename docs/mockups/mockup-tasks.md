@@ -71,14 +71,14 @@
 
 ---
 
-## 07 — Formula Inspectパネル 未着手
-対象: Formula/FlowページのInspectサイドパネル
+## 07 — Formula Inspectパネル ✅
+対象: `/flows/:id` キャンバスのInspect右パネル
 含むもの:
-- 右端トグルボタン
-- スライドして出るサイドパネル
-- ツリー展開UI（▼/▶）
-- 展開粒度に合わせたKaTeX描画
-- 末端ComponentのConstなど値の直接表示
+- 👁ボタンクリックでスライドイン（?rightPanel=inspect）
+- DefaultReturn selectbox（output選択）
+- KaTeXエリア（Tree展開状態に連動）
+- Tree展開UI（Flow→Formula→Const の3段階、componentカラー）
+- 各行のジャンプリンク（↗）
 対応mdドキュメント: `docs/spec/07-formula-inspect.md`
 
 ---

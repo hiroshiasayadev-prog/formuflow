@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>07d — Formula Inspect: FlowComponentネスト展開</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#111118; --bg2:#16161f; --bg3:#1c1c28;
+  --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14);
+  --text:#e2e2e8; --text2:#8888a0; --text3:#55556a;
+  --accent:#6366f1; --accent2:#a5b4fc;
+  --green:#4ade80; --green-bg:rgba(74,222,128,0.15);
+  --col-formula:#a5b4fc; --col-flow:#5eead4; --col-const:#fcd34d; --col-input:#67e8f9;
+}
+body { background:#0a0a12; font-family:'JetBrains Mono','Fira Code','Cascadia Code',monospace; font-size:12px; color:var(--text); padding:24px; display:flex; flex-direction:column; gap:16px; }
+.scene-label { font-size:10px; color:var(--text3); letter-spacing:0.1em; font-weight:600; text-transform:uppercase; }
+
+/*
+  設定:
+    transistor_iv_flow
+      DefaultInput: transistor_input (port: Vgs)
+      DefaultReturn: transistor_output (port: Id)
+        bias_flow  ← FlowComponent
+          （bias_flowの内部）
+          DefaultInput: bias_input (port: Vgs, Vth)
+          DefaultReturn: bias_output (port: Id)
+            calc_drain_current  (式: (Vgs - Vth)^2)
+              Vgs ← DefaultInput port "Vgs"
+              Vth ← Const, value = 0.7
+
+  ツリー状態                                   → KaTeX
+  ────────────────────────────────────────────────────────────────
+  ① ▶ transistor_iv_flow                      → transistor_iv_flow(Vgs)
+  ② ▼ transistor_iv_flow / ▶ bias_flow        → bias_flow(Vgs, Vth)
+  ③ ▼ transistor_iv_flow / ▼ bias_flow
+       ▶ calc_drain_current                   → calc_drain_current(Vgs, Vth)
+  ④ ▼ transistor_iv_flow / ▼ bias_flow
+       ▼ calc_drain_current / Vgs(leaf) / ▼Vth → (Vgs - 0.7)^2
+*/
+
+.scenario-row { display:flex; gap:8px; flex-wrap:wrap; }
+.scenario-btn { font-size:10px; font-family:inherit; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:4px; padding:4px 10px; cursor:pointer; }
+.scenario-btn:hover { color:var(--text); border-color:rgba(255,255,255,0.25); }
+.scenario-btn.active { color:var(--accent2); border-color:rgba(99,102,241,0.5); background:rgba(99,102,241,0.1); }
+
+.shell { background:var(--bg); border:1px solid var(--border2); border-radius:8px; overflow:hidden; display:flex; flex-direction:column; height:640px; }
+.menubar { height:30px; background:#0d0d14; border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 12px; flex-shrink:0; }
+.menubar-title { color:var(--accent); font-weight:700; font-size:11px; letter-spacing:0.1em; margin-right:16px; }
+.menubar-item { color:var(--text2); font-size:11px; padding:0 8px; height:30px; display:flex; align-items:center; }
+.body-row { display:flex; flex:1; min-height:0; }
+
+.iconbar { width:48px; background:#0e0e18; border-right:1px solid var(--border); display:flex; flex-direction:column; align-items:center; padding:8px 0; flex-shrink:0; }
+.icon-btn { width:40px; height:36px; display:flex; align-items:center; justify-content:center; border-radius:4px; color:var(--text3); font-size:13px; position:relative; }
+.icon-btn.active { color:var(--text); }
+.icon-btn.active::before { content:''; position:absolute; left:-8px; top:50%; transform:translateY(-50%); width:2px; height:18px; background:var(--accent); border-radius:0 1px 1px 0; }
+.icon-btn-bot { margin-top:auto; }
+
+.sidebar { width:200px; background:var(--bg2); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+.sidebar-hdr { height:30px; padding:0 10px; display:flex; align-items:center; color:var(--text3); font-size:10px; letter-spacing:0.1em; font-weight:600; border-bottom:1px solid var(--border); }
+.tree-s { padding:4px 0; }
+.tree-item-s { height:24px; display:flex; align-items:center; padding:0 8px; gap:4px; color:var(--text2); font-size:11px; white-space:nowrap; }
+.tree-item-s.active { background:rgba(255,255,255,0.08); color:var(--text); }
+
+.main { flex:1; display:flex; flex-direction:column; min-width:0; }
+.tabbar { height:35px; background:#0e0e18; border-bottom:1px solid var(--border); display:flex; align-items:stretch; flex-shrink:0; }
+.tab { display:flex; align-items:center; gap:5px; padding:0 12px 0 10px; border-right:1px solid var(--border); color:var(--text2); font-size:11px; position:relative; white-space:nowrap; }
+.tab.active { background:var(--bg); color:var(--text); }
+.tab.active::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:#14b8a6; }
+.tab-close { opacity:0; font-size:10px; color:var(--text2); }
+.tab:hover .tab-close { opacity:1; }
+
+.page { flex:1; display:flex; min-height:0; }
+
+.canvas-area {
+  flex:1; position:relative; background:var(--bg);
+  background-image: linear-gradient(rgba(255,255,255,0.025) 1px,transparent 1px), linear-gradient(90deg,rgba(255,255,255,0.025) 1px,transparent 1px);
+  background-size:24px 24px; overflow:hidden;
+}
+.flow-node { position:absolute; background:var(--bg2); border:1px solid var(--border2); border-radius:6px; overflow:hidden; font-size:11px; }
+.node-header { display:flex; align-items:center; gap:6px; padding:5px 8px; }
+.node-icon { width:18px; height:18px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; flex-shrink:0; }
+.node-title { font-size:11px; font-weight:600; }
+.node-actions { margin-left:auto; }
+.eye-btn { width:16px; height:16px; border-radius:2px; display:flex; align-items:center; justify-content:center; font-size:9px; color:var(--col-flow); background:rgba(20,184,166,0.2); }
+.node-body { padding:6px 8px; display:flex; flex-direction:column; gap:4px; }
+.port-row { display:flex; align-items:center; gap:5px; font-size:10px; color:var(--text2); }
+.handle { width:8px; height:8px; border-radius:50%; background:var(--bg); border:1.5px solid rgba(255,255,255,0.2); flex-shrink:0; }
+.tbadge { font-size:9px; font-weight:700; color:var(--green); background:var(--green-bg); border-radius:2px; padding:0 4px; }
+.node-divider { height:1px; background:var(--border); margin:2px 0; }
+
+.inspect-panel { width:300px; background:var(--bg2); border-left:1px solid var(--border2); display:flex; flex-direction:column; flex-shrink:0; }
+.inspect-hdr { height:36px; padding:0 12px; display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.inspect-hdr-title { font-size:10px; font-weight:600; letter-spacing:0.1em; color:var(--text3); text-transform:uppercase; flex:1; }
+.inspect-close { font-size:11px; color:var(--text3); width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:3px; cursor:pointer; }
+.inspect-close:hover { color:var(--text2); background:rgba(255,255,255,0.06); }
+.inspect-select-row { padding:8px 12px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.inspect-select-label { font-size:9px; color:var(--text3); letter-spacing:0.08em; font-weight:600; margin-bottom:4px; text-transform:uppercase; }
+.inspect-select { width:100%; background:var(--bg3); border:1px solid var(--border2); border-radius:4px; padding:4px 8px; font-size:11px; font-family:inherit; color:var(--text); appearance:none; cursor:pointer; }
+.inspect-katex-area { padding:12px; border-bottom:1px solid var(--border); background:var(--bg3); min-height:64px; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow-x:auto; }
+.inspect-tree { flex:1; overflow-y:auto; padding:4px 0; }
+
+.itree-item { height:26px; display:flex; align-items:center; gap:5px; font-size:11px; color:#c4c4d4; white-space:nowrap; }
+.itree-item:hover { background:rgba(255,255,255,0.05); }
+.itree-chevron { font-size:8px; width:10px; text-align:center; flex-shrink:0; color:#7a7a90; }
+.itree-icon { width:16px; height:16px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:700; flex-shrink:0; }
+.itree-name { flex:1; overflow:hidden; text-overflow:ellipsis; }
+.itree-actions { opacity:0; display:flex; align-items:center; flex-shrink:0; margin-right:6px; }
+.itree-item:hover .itree-actions { opacity:1; }
+.itree-sep { width:1px; height:14px; background:rgba(255,255,255,0.15); margin-right:4px; }
+.itree-action-btn { font-size:10px; color:#7a7a90; width:18px; height:18px; display:flex; align-items:center; justify-content:center; border-radius:3px; cursor:pointer; }
+.itree-action-btn:hover { color:var(--text); background:rgba(255,255,255,0.1); }
+
+/* FlowComponentがネスト展開中であることを示すネスト境界線 */
+.itree-nest-divider {
+  height:1px; background:rgba(20,184,166,0.2);
+  margin:2px 8px 2px 24px;
+  position:relative;
+}
+.itree-nest-divider::before {
+  content:'bias_flow 内部';
+  position:absolute; left:4px; top:-8px;
+  font-size:8px; color:rgba(94,234,212,0.5);
+  letter-spacing:0.05em;
+}
+
+.statusbar { height:22px; background:var(--accent); display:flex; align-items:center; padding:0 10px; gap:12px; font-size:10px; color:rgba(255,255,255,0.85); flex-shrink:0; }
+.sb-right { margin-left:auto; display:flex; gap:12px; }
+.sb-dot { width:6px; height:6px; border-radius:50%; background:#4ade80; display:inline-block; margin-right:3px; }
+</style>
+</head>
+<body>
+
+<div class="scene-label">07d — Formula Inspect / FlowComponentネスト展開</div>
+<div class="scenario-row">
+  <button class="scenario-btn active" onclick="applyScenario(0,this)">① ▶ flow</button>
+  <button class="scenario-btn" onclick="applyScenario(1,this)">② ▼ flow / ▶ bias_flow</button>
+  <button class="scenario-btn" onclick="applyScenario(2,this)">③ ▼ flow / ▼ bias_flow / ▶ formula</button>
+  <button class="scenario-btn" onclick="applyScenario(3,this)">④ ▼ flow / ▼ bias_flow / ▼ formula / ▼ Vth</button>
+</div>
+
+<div class="shell">
+  <div class="menubar">
+    <span class="menubar-title">formuflow</span>
+    <span class="menubar-item">File</span><span class="menubar-item">Edit</span>
+    <span class="menubar-item">View</span><span class="menubar-item">Run</span>
+  </div>
+  <div class="body-row">
+    <div class="iconbar">
+      <div class="icon-btn active">⊟</div>
+      <div class="icon-btn">⌕</div>
+      <div class="icon-btn" style="font-size:9px;font-weight:700;">DB</div>
+      <div class="icon-btn icon-btn-bot">⚙</div>
+    </div>
+    <div class="sidebar">
+      <div class="sidebar-hdr">COMPONENT TREE</div>
+      <div class="tree-s">
+        <div class="tree-item-s"><span style="width:8px"></span>▼<span style="margin-left:4px;">user</span></div>
+        <div class="tree-item-s"><span style="width:20px"></span>▼<span style="margin-left:4px;">flows</span></div>
+        <div class="tree-item-s active"><span style="width:32px"></span><span style="color:#14b8a6;font-size:10px;">⇢</span><span style="margin-left:4px;">transistor_iv_flow</span></div>
+        <div class="tree-item-s"><span style="width:32px"></span><span style="color:#14b8a6;font-size:10px;">⇢</span><span style="margin-left:4px;">bias_flow</span></div>
+        <div class="tree-item-s"><span style="width:20px"></span>▼<span style="margin-left:4px;">formulas</span></div>
+        <div class="tree-item-s"><span style="width:32px"></span><span style="color:#6366f1;font-size:10px;">fx</span><span style="margin-left:4px;">calc_drain_current</span></div>
+        <div class="tree-item-s"><span style="width:20px"></span>▼<span style="margin-left:4px;">consts</span></div>
+        <div class="tree-item-s"><span style="width:32px"></span><span style="color:#f59e0b;font-size:10px;">C</span><span style="margin-left:4px;">Vth</span></div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="tabbar">
+        <div class="tab active">
+          <span style="font-size:10px;color:#14b8a6;">⇢</span>
+          <span>transistor_iv_flow</span>
+          <span class="tab-close">✕</span>
+        </div>
+      </div>
+      <div class="page">
+        <div class="canvas-area">
+          <!-- transistor_iv_flow のキャンバス -->
+          <!-- DefaultInput -->
+          <div class="flow-node" style="top:50px;left:16px;min-width:120px;">
+            <div class="node-header" style="background:rgba(6,182,212,0.18);">
+              <div class="node-icon" style="background:rgba(6,182,212,0.3);color:#67e8f9;">▶</div>
+              <span class="node-title" style="color:#67e8f9;">transistor_input</span>
+            </div>
+            <div class="node-body">
+              <div class="port-row" style="justify-content:flex-end;"><span>Vgs</span><span class="tbadge">F64</span><div class="handle"></div></div>
+            </div>
+          </div>
+
+          <!-- bias_flow (FlowComponent) -->
+          <div class="flow-node" style="top:38px;left:190px;min-width:120px;">
+            <div class="node-header" style="background:rgba(20,184,166,0.18);">
+              <div class="node-icon" style="background:rgba(20,184,166,0.3);color:#5eead4;">⇢</div>
+              <span class="node-title" style="color:#5eead4;">bias_flow</span>
+              <div class="node-actions"><div class="eye-btn">👁</div></div>
+            </div>
+            <div class="node-body">
+              <div class="port-row"><div class="handle"></div><span class="tbadge">F64</span><span>Vgs</span></div>
+              <div class="node-divider"></div>
+              <div class="port-row" style="justify-content:flex-end;"><span>Id</span><span class="tbadge">F64</span><div class="handle"></div></div>
+            </div>
+          </div>
+
+          <!-- DefaultReturn -->
+          <div class="flow-node" style="top:44px;left:364px;min-width:140px;">
+            <div class="node-header" style="background:rgba(168,85,247,0.18);">
+              <div class="node-icon" style="background:rgba(168,85,247,0.3);color:#d8b4fe;">◀</div>
+              <span class="node-title" style="color:#d8b4fe;">transistor_output</span>
+            </div>
+            <div class="node-body">
+              <div class="port-row"><div class="handle"></div><span class="tbadge">F64</span><span>Id</span></div>
+            </div>
+          </div>
+
+          <!-- Const Vth（bias_flowへの入力として配置） -->
+          <div class="flow-node" style="top:180px;left:96px;min-width:80px;">
+            <div class="node-header" style="background:rgba(245,158,11,0.18);">
+              <div class="node-icon" style="background:rgba(245,158,11,0.3);color:#fcd34d;">C</div>
+              <span class="node-title" style="color:#fcd34d;">Vth</span>
+            </div>
+            <div class="node-body">
+              <div class="port-row" style="justify-content:flex-end;"><span>value</span><span class="tbadge">F64</span><div class="handle"></div></div>
+            </div>
+          </div>
+
+          <svg style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;">
+            <path d="M 154 68 C 172 68 172 58 190 58" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+            <path d="M 164 199 C 180 199 180 74 190 74" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+            <path d="M 324 58 C 344 58 344 62 364 62" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+          </svg>
+        </div>
+
+        <!-- inspect panel -->
+        <div class="inspect-panel">
+          <div class="inspect-hdr">
+            <span class="inspect-hdr-title">INSPECT</span>
+            <div class="inspect-close">✕</div>
+          </div>
+          <div class="inspect-select-row">
+            <div class="inspect-select-label">OUTPUT</div>
+            <select class="inspect-select"><option>Id</option></select>
+          </div>
+          <div class="inspect-katex-area" id="katex-display"></div>
+          <div class="inspect-tree" id="itree"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="statusbar">
+    <span>formuflow</span><span style="color:rgba(255,255,255,0.5)">main</span>
+    <div class="sb-right"><span><span class="sb-dot"></span>DuckDB</span><span>UTF-8</span></div>
+  </div>
+</div>
+
+<script>
+const fc = '#5eead4', fm = '#a5b4fc', cn = '#fcd34d', ip = '#67e8f9';
+
+// シナリオ別KaTeX
+const KATEX = [
+  // ① ▶ flow
+  `\\textcolor{${fc}}{\\text{transistor\\_iv\\_flow}}(\\textcolor{${ip}}{Vgs})`,
+  // ② ▼ flow / ▶ bias_flow → bias_flowはtitleで表現（portはbias_flowのDefaultInputのports）
+  `\\textcolor{${fc}}{\\text{bias\\_flow}}(\\textcolor{${ip}}{Vgs},\\;\\textcolor{${cn}}{Vth})`,
+  // ③ ▼ flow / ▼ bias_flow / ▶ formula → bias_flowに潜ってformulaのtitleで表現
+  `\\textcolor{${fm}}{\\text{calc\\_drain\\_current}}(\\textcolor{${ip}}{Vgs},\\;\\textcolor{${cn}}{Vth})`,
+  // ④ ▼ flow / ▼ bias_flow / ▼ formula / ▼ Vth → 式が展開され値が入る
+  `(\\textcolor{${ip}}{Vgs} - 0.7)^{2}`,
+];
+
+// シナリオ別ツリー定義
+// type: flow / flow-nested（ネスト中のflow） / formula / const / input / value
+const TYPE_STYLE = {
+  flow:    { bg:'rgba(20,184,166,0.2)',  fg:'#5eead4', icon:'⇢' },
+  formula: { bg:'rgba(99,102,241,0.2)', fg:'#a5b4fc', icon:'fx' },
+  const:   { bg:'rgba(245,158,11,0.2)', fg:'#fcd34d', icon:'C'  },
+  input:   { bg:'rgba(6,182,212,0.2)',  fg:'#67e8f9', icon:'▶'  },
+};
+
+const TREES = [
+  // ① root畳んだ
+  [{ type:'flow', name:'transistor_iv_flow', open:false }],
+
+  // ② flow展開 / bias_flow畳んだ
+  [{ type:'flow', name:'transistor_iv_flow', open:true, children:[
+    { type:'flow', name:'bias_flow', open:false },
+  ]}],
+
+  // ③ flow展開 / bias_flow展開 / formula畳んだ
+  // bias_flowの中に潜っていることをネスト境界線で示す
+  [{ type:'flow', name:'transistor_iv_flow', open:true, children:[
+    { type:'flow', name:'bias_flow', open:true, nestLabel:'bias_flow 内部', children:[
+      { type:'formula', name:'calc_drain_current', open:false },
+    ]},
+  ]}],
+
+  // ④ 全展開
+  [{ type:'flow', name:'transistor_iv_flow', open:true, children:[
+    { type:'flow', name:'bias_flow', open:true, nestLabel:'bias_flow 内部', children:[
+      { type:'formula', name:'calc_drain_current', open:true, children:[
+        { type:'input', name:'Vgs', isLeaf:true },
+        { type:'const', name:'Vth', open:true, children:[
+          { isValue:true, value:'0.7' },
+        ]},
+      ]},
+    ]},
+  ]}],
+];
+
+function buildTree(nodes, el, depth) {
+  for (const node of nodes) {
+    // 値ノード
+    if (node.isValue) {
+      const div = document.createElement('div');
+      div.className = 'itree-item';
+      div.style.paddingLeft = `${8 + depth * 16}px`;
+      div.innerHTML = `<span class="itree-chevron"></span><span style="color:var(--text2);padding-left:21px;">${node.value}</span>`;
+      el.appendChild(div);
+      continue;
+    }
+
+    const s = TYPE_STYLE[node.type];
+    const hasChildren = node.children && node.children.length > 0;
+    const isLeaf = node.isLeaf;
+    const chevron = isLeaf ? '' : (node.open ? '▼' : '▶');
+
+    const div = document.createElement('div');
+    div.className = 'itree-item';
+    div.style.paddingLeft = `${8 + depth * 16}px`;
+    div.innerHTML = `
+      <span class="itree-chevron">${chevron}</span>
+      <div class="itree-icon" style="background:${s.bg};color:${s.fg};">${s.icon}</div>
+      <span class="itree-name" style="color:${s.fg};">${node.name}</span>
+      <div class="itree-actions"><div class="itree-sep"></div><div class="itree-action-btn" title="開く">↗</div></div>
+    `;
+    el.appendChild(div);
+
+    if (node.open && hasChildren) {
+      // ネストしたFlowの内部であることを示す境界線
+      if (node.nestLabel) {
+        const divider = document.createElement('div');
+        divider.className = 'itree-nest-divider';
+        divider.style.marginLeft = `${8 + (depth + 1) * 16}px`;
+        divider.setAttribute('data-label', node.nestLabel);
+        // ラベルをbefore擬似要素の代わりにspanで実装
+        divider.innerHTML = `<span style="position:absolute;left:4px;top:-8px;font-size:8px;color:rgba(94,234,212,0.5);letter-spacing:0.05em;">${node.nestLabel}</span>`;
+        el.appendChild(divider);
+      }
+      buildTree(node.children, el, depth + 1);
+    }
+  }
+}
+
+function renderKatex(idx) {
+  if (typeof katex === 'undefined') { setTimeout(() => renderKatex(idx), 50); return; }
+  const el = document.getElementById('katex-display');
+  el.innerHTML = '';
+  try {
+    katex.render(KATEX[idx], el, { throwOnError:false, displayMode:true });
+  } catch(e) { el.textContent = '(render error)'; }
+}
+
+function applyScenario(idx, btn) {
+  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderKatex(idx);
+  const el = document.getElementById('itree');
+  el.innerHTML = '';
+  buildTree(TREES[idx], el, 0);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  function tryRender() {
+    if (typeof katex === 'undefined') { setTimeout(tryRender, 50); return; }
+    applyScenario(0, document.querySelector('.scenario-btn.active'));
+  }
+  tryRender();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>07b — Formula Inspect: Tree展開 + KaTeX連動</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#111118; --bg2:#16161f; --bg3:#1c1c28;
+  --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14);
+  --text:#e2e2e8; --text2:#8888a0; --text3:#55556a;
+  --accent:#6366f1; --accent2:#a5b4fc;
+  --green:#4ade80; --green-bg:rgba(74,222,128,0.15);
+  --col-formula:#a5b4fc;
+  --col-flow:#5eead4;
+  --col-const:#fcd34d;
+  --col-input:#67e8f9;
+}
+body {
+  background:#0a0a12;
+  font-family:'JetBrains Mono','Fira Code','Cascadia Code',monospace;
+  font-size:12px; color:var(--text); padding:24px;
+  display:flex; flex-direction:column; gap:16px;
+}
+.scene-label { font-size:10px; color:var(--text3); letter-spacing:0.1em; font-weight:600; text-transform:uppercase; }
+.scenario-row { display:flex; gap:8px; flex-wrap:wrap; }
+.scenario-btn {
+  font-size:10px; font-family:inherit;
+  background:var(--bg3); border:1px solid var(--border2);
+  color:var(--text2); border-radius:4px; padding:4px 10px; cursor:pointer;
+}
+.scenario-btn:hover { color:var(--text); border-color:rgba(255,255,255,0.25); }
+.scenario-btn.active { color:var(--accent2); border-color:rgba(99,102,241,0.5); background:rgba(99,102,241,0.1); }
+
+.shell {
+  background:var(--bg); border:1px solid var(--border2);
+  border-radius:8px; overflow:hidden; display:flex; flex-direction:column; height:640px;
+}
+.menubar { height:30px; background:#0d0d14; border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 12px; flex-shrink:0; }
+.menubar-title { color:var(--accent); font-weight:700; font-size:11px; letter-spacing:0.1em; margin-right:16px; }
+.menubar-item { color:var(--text2); font-size:11px; padding:0 8px; height:30px; display:flex; align-items:center; }
+.body-row { display:flex; flex:1; min-height:0; }
+
+.iconbar { width:48px; background:#0e0e18; border-right:1px solid var(--border); display:flex; flex-direction:column; align-items:center; padding:8px 0; flex-shrink:0; }
+.icon-btn { width:40px; height:36px; display:flex; align-items:center; justify-content:center; border-radius:4px; color:var(--text3); font-size:13px; position:relative; }
+.icon-btn.active { color:var(--text); }
+.icon-btn.active::before { content:''; position:absolute; left:-8px; top:50%; transform:translateY(-50%); width:2px; height:18px; background:var(--accent); border-radius:0 1px 1px 0; }
+.icon-btn-bot { margin-top:auto; }
+
+.sidebar { width:200px; background:var(--bg2); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+.sidebar-hdr { height:30px; padding:0 10px; display:flex; align-items:center; color:var(--text3); font-size:10px; letter-spacing:0.1em; font-weight:600; border-bottom:1px solid var(--border); }
+.tree-s { padding:4px 0; }
+.tree-item-s { height:24px; display:flex; align-items:center; padding:0 8px; gap:4px; color:var(--text2); font-size:11px; white-space:nowrap; }
+.tree-item-s.active { background:rgba(255,255,255,0.08); color:var(--text); }
+
+.main { flex:1; display:flex; flex-direction:column; min-width:0; }
+.tabbar { height:35px; background:#0e0e18; border-bottom:1px solid var(--border); display:flex; align-items:stretch; flex-shrink:0; }
+.tab { display:flex; align-items:center; gap:5px; padding:0 12px 0 10px; border-right:1px solid var(--border); color:var(--text2); font-size:11px; position:relative; white-space:nowrap; }
+.tab.active { background:var(--bg); color:var(--text); }
+.tab.active::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:#14b8a6; }
+.tab-close { opacity:0; font-size:10px; color:var(--text2); }
+.tab:hover .tab-close { opacity:1; }
+
+.page { flex:1; display:flex; min-height:0; }
+
+.canvas-area {
+  flex:1; position:relative; background:var(--bg);
+  background-image: linear-gradient(rgba(255,255,255,0.025) 1px,transparent 1px), linear-gradient(90deg,rgba(255,255,255,0.025) 1px,transparent 1px);
+  background-size:24px 24px; overflow:hidden;
+}
+.flow-node { position:absolute; background:var(--bg2); border:1px solid var(--border2); border-radius:6px; overflow:hidden; min-width:130px; font-size:11px; }
+.node-header { display:flex; align-items:center; gap:6px; padding:5px 8px; }
+.node-icon { width:18px; height:18px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; flex-shrink:0; }
+.node-title { font-size:11px; font-weight:600; }
+.node-actions { margin-left:auto; }
+.node-action-btn { width:16px; height:16px; border-radius:2px; display:flex; align-items:center; justify-content:center; font-size:9px; color:var(--text2); background:rgba(255,255,255,0.06); }
+.node-action-btn.eye-active { color:var(--col-flow); background:rgba(20,184,166,0.2); }
+.node-body { padding:6px 8px; display:flex; flex-direction:column; gap:4px; }
+.port-row { display:flex; align-items:center; gap:5px; font-size:10px; color:var(--text2); }
+.handle { width:8px; height:8px; border-radius:50%; background:var(--bg); border:1.5px solid rgba(255,255,255,0.2); flex-shrink:0; }
+.tbadge { font-size:9px; font-weight:700; color:var(--green); background:var(--green-bg); border-radius:2px; padding:0 4px; }
+.node-divider { height:1px; background:var(--border); margin:2px 0; }
+
+/* inspect panel */
+.inspect-panel { width:300px; background:var(--bg2); border-left:1px solid var(--border2); display:flex; flex-direction:column; flex-shrink:0; }
+.inspect-hdr { height:36px; padding:0 12px; display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.inspect-hdr-title { font-size:10px; font-weight:600; letter-spacing:0.1em; color:var(--text3); text-transform:uppercase; flex:1; }
+.inspect-close { font-size:11px; color:var(--text3); cursor:pointer; width:20px; height:20px; display:flex; align-items:center; justify-content:center; border-radius:3px; }
+.inspect-close:hover { color:var(--text2); background:rgba(255,255,255,0.06); }
+
+.inspect-select-row { padding:8px 12px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.inspect-select-label { font-size:9px; color:var(--text3); letter-spacing:0.08em; font-weight:600; margin-bottom:4px; text-transform:uppercase; }
+.inspect-select { width:100%; background:var(--bg3); border:1px solid var(--border2); border-radius:4px; padding:4px 8px; font-size:11px; font-family:inherit; color:var(--text); appearance:none; cursor:pointer; }
+
+.inspect-katex-area { padding:12px; border-bottom:1px solid var(--border); background:var(--bg3); min-height:60px; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow-x:auto; }
+
+.inspect-tree { flex:1; overflow-y:auto; padding:4px 0; }
+.itree-item { height:26px; display:flex; align-items:center; gap:5px; font-size:11px; color:#c4c4d4; cursor:pointer; white-space:nowrap; }
+.itree-item:hover { background:rgba(255,255,255,0.05); }
+.itree-chevron { font-size:8px; width:10px; text-align:center; flex-shrink:0; color:#7a7a90; }
+.itree-icon { width:16px; height:16px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:700; flex-shrink:0; }
+.itree-name { flex:1; overflow:hidden; text-overflow:ellipsis; }
+/* hover時に出るアクションエリア: 縦線 + ↗ボタン */
+.itree-actions { opacity:0; display:flex; align-items:center; flex-shrink:0; margin-right:6px; }
+.itree-item:hover .itree-actions { opacity:1; }
+.itree-sep { width:1px; height:14px; background:rgba(255,255,255,0.15); margin-right:4px; }
+.itree-action-btn { font-size:10px; color:#7a7a90; width:18px; height:18px; display:flex; align-items:center; justify-content:center; border-radius:3px; cursor:pointer; }
+.itree-action-btn:hover { color:var(--text); background:rgba(255,255,255,0.1); }
+
+.statusbar { height:22px; background:var(--accent); display:flex; align-items:center; padding:0 10px; gap:12px; font-size:10px; color:rgba(255,255,255,0.85); flex-shrink:0; }
+.sb-right { margin-left:auto; display:flex; gap:12px; }
+.sb-dot { width:6px; height:6px; border-radius:50%; background:#4ade80; display:inline-block; margin-right:3px; }
+</style>
+</head>
+<body>
+
+<div class="scene-label">07b — Formula Inspect / Tree展開 + KaTeX連動</div>
+
+<!--
+  設定:
+    transistor_iv_flow
+      DefaultInput: transistor_input (port: Vgs)
+      DefaultReturn: transistor_output (port: Id)
+        calc_drain_current  (式: (Vgs - Vth)^2)
+          Vgs ← DefaultInput port "Vgs"
+          Vth ← Const, value = 0.7
+
+  ツリー状態            → KaTeX
+  ─────────────────────────────────────────────────
+  ▶ transistor_iv_flow  → transistor_iv_flow(Vgs)
+  ▼ transistor_iv_flow
+    ▶ calc_drain_current → calc_drain_current(Vgs, Vth)
+  ▼ transistor_iv_flow
+    ▼ calc_drain_current
+      Vgs (leaf)         → (Vgs - Vth)^2
+      ▶ Vth
+  ▼ transistor_iv_flow
+    ▼ calc_drain_current
+      Vgs (leaf)
+      ▼ Vth              → (Vgs - 0.7)^2
+        0.7 (leaf)
+-->
+
+<div class="scenario-row">
+  <button class="scenario-btn active" onclick="applyScenario(0,this)">① ▶ flow（畳んだ）</button>
+  <button class="scenario-btn" onclick="applyScenario(1,this)">② ▼ flow / ▶ formula</button>
+  <button class="scenario-btn" onclick="applyScenario(2,this)">③ ▼ flow / ▼ formula / ▶ Vth</button>
+  <button class="scenario-btn" onclick="applyScenario(3,this)">④ ▼ flow / ▼ formula / ▼ Vth</button>
+</div>
+
+<div class="shell">
+  <div class="menubar">
+    <span class="menubar-title">formuflow</span>
+    <span class="menubar-item">File</span><span class="menubar-item">Edit</span>
+    <span class="menubar-item">View</span><span class="menubar-item">Run</span>
+  </div>
+  <div class="body-row">
+    <div class="iconbar">
+      <div class="icon-btn active">⊟</div>
+      <div class="icon-btn">⌕</div>
+      <div class="icon-btn" style="font-size:9px;font-weight:700;">DB</div>
+      <div class="icon-btn icon-btn-bot">⚙</div>
+    </div>
+    <div class="sidebar">
+      <div class="sidebar-hdr">COMPONENT TREE</div>
+      <div class="tree-s">
+        <div class="tree-item-s"><span style="width:8px"></span>▼<span style="margin-left:4px;">user</span></div>
+        <div class="tree-item-s"><span style="width:20px"></span>▼<span style="margin-left:4px;">flows</span></div>
+        <div class="tree-item-s active"><span style="width:32px"></span><span style="color:#14b8a6;font-size:10px;">⇢</span><span style="margin-left:4px;">transistor_iv_flow</span></div>
+        <div class="tree-item-s"><span style="width:20px"></span>▼<span style="margin-left:4px;">formulas</span></div>
+        <div class="tree-item-s"><span style="width:32px"></span><span style="color:#6366f1;font-size:10px;">fx</span><span style="margin-left:4px;">calc_drain_current</span></div>
+        <div class="tree-item-s"><span style="width:20px"></span>▼<span style="margin-left:4px;">consts</span></div>
+        <div class="tree-item-s"><span style="width:32px"></span><span style="color:#f59e0b;font-size:10px;">C</span><span style="margin-left:4px;">Vth</span></div>
+      </div>
+    </div>
+    <div class="main">
+      <div class="tabbar">
+        <div class="tab active">
+          <span style="font-size:10px;color:#14b8a6;">⇢</span>
+          <span>transistor_iv_flow</span>
+          <span class="tab-close">✕</span>
+        </div>
+      </div>
+      <div class="page">
+        <div class="canvas-area">
+          <div class="flow-node" style="top:50px;left:16px;">
+            <div class="node-header" style="background:rgba(6,182,212,0.18);">
+              <div class="node-icon" style="background:rgba(6,182,212,0.3);color:#67e8f9;">▶</div>
+              <span class="node-title" style="color:#67e8f9;">transistor_input</span>
+            </div>
+            <div class="node-body">
+              <div class="port-row" style="justify-content:flex-end;"><span>Vgs</span><span class="tbadge">F64</span><div class="handle"></div></div>
+            </div>
+          </div>
+          <div class="flow-node" style="top:38px;left:180px;">
+            <div class="node-header" style="background:rgba(99,102,241,0.22);">
+              <div class="node-icon" style="background:rgba(99,102,241,0.3);color:#a5b4fc;">fx</div>
+              <span class="node-title" style="color:#a5b4fc;">calc_drain_current</span>
+              <div class="node-actions"><div class="node-action-btn eye-active">👁</div></div>
+            </div>
+            <div class="node-body">
+              <div class="port-row"><div class="handle"></div><span class="tbadge">F64</span><span>Vgs</span></div>
+              <div class="port-row"><div class="handle"></div><span class="tbadge">F64</span><span>Vth</span></div>
+              <div class="node-divider"></div>
+              <div class="port-row" style="justify-content:flex-end;"><span>Id</span><span class="tbadge">F64</span><div class="handle"></div></div>
+            </div>
+          </div>
+          <div class="flow-node" style="top:44px;left:370px;">
+            <div class="node-header" style="background:rgba(168,85,247,0.18);">
+              <div class="node-icon" style="background:rgba(168,85,247,0.3);color:#d8b4fe;">◀</div>
+              <span class="node-title" style="color:#d8b4fe;">transistor_output</span>
+            </div>
+            <div class="node-body">
+              <div class="port-row"><div class="handle"></div><span class="tbadge">F64</span><span>Id</span></div>
+            </div>
+          </div>
+          <div class="flow-node" style="top:170px;left:90px;">
+            <div class="node-header" style="background:rgba(245,158,11,0.18);">
+              <div class="node-icon" style="background:rgba(245,158,11,0.3);color:#fcd34d;">C</div>
+              <span class="node-title" style="color:#fcd34d;">Vth</span>
+            </div>
+            <div class="node-body">
+              <div class="port-row" style="justify-content:flex-end;"><span>value</span><span class="tbadge">F64</span><div class="handle"></div></div>
+            </div>
+          </div>
+          <svg style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;">
+            <path d="M 154 68 C 168 68 168 61 180 61" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+            <path d="M 158 189 C 172 189 172 77 180 77" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+            <path d="M 318 61 C 344 61 344 62 370 62" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+          </svg>
+        </div>
+
+        <div class="inspect-panel">
+          <div class="inspect-hdr">
+            <span class="inspect-hdr-title">INSPECT</span>
+            <div class="inspect-close">✕</div>
+          </div>
+          <div class="inspect-select-row">
+            <div class="inspect-select-label">OUTPUT</div>
+            <select class="inspect-select"><option>Id</option></select>
+          </div>
+          <div class="inspect-katex-area" id="katex-display"></div>
+          <div class="inspect-tree" id="itree"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="statusbar">
+    <span>formuflow</span><span style="color:rgba(255,255,255,0.5)">main</span>
+    <div class="sb-right"><span><span class="sb-dot"></span>DuckDB</span><span>UTF-8</span></div>
+  </div>
+</div>
+
+<script>
+const fc = '#5eead4', fm = '#a5b4fc', cn = '#fcd34d', ip = '#67e8f9';
+
+// ツリー状態 → KaTeX の対応（1対1）
+const KATEX_EXPRS = [
+  // ① ▶ flow（畳んだ）: flow(DefaultInput port名)
+  `\\textcolor{${fc}}{\\text{transistor\\_iv\\_flow}}(\\textcolor{${ip}}{Vgs})`,
+
+  // ② ▼ flow / ▶ formula: formula(引数のtitle)
+  `\\textcolor{${fm}}{\\text{calc\\_drain\\_current}}(\\textcolor{${ip}}{Vgs},\\;\\textcolor{${cn}}{Vth})`,
+
+  // ③ ▼ flow / ▼ formula / ▶ Vth: formulaの式（Constはtitle）
+  `(\\textcolor{${ip}}{Vgs} - \\textcolor{${cn}}{Vth})^{2}`,
+
+  // ④ ▼ flow / ▼ formula / ▼ Vth: formulaの式（Constは値）
+  `(\\textcolor{${ip}}{Vgs} - 0.7)^{2}`,
+];
+
+function renderKatex(idx) {
+  if (typeof katex === 'undefined') { setTimeout(() => renderKatex(idx), 50); return; }
+  const el = document.getElementById('katex-display');
+  el.innerHTML = '';
+  try {
+    katex.render(KATEX_EXPRS[idx], el, { throwOnError: false, displayMode: true });
+  } catch(e) { el.textContent = '(render error)'; }
+}
+
+function renderTree(idx) {
+  const el = document.getElementById('itree');
+  el.innerHTML = '';
+
+  const flowOpen    = idx >= 1;
+  const formulaOpen = idx >= 2;
+  const constOpen   = idx >= 3;
+
+  function row(indent, chevron, iconBg, iconFg, iconText, nameColor, name, isLeaf) {
+    return `<div class="itree-item" style="padding-left:${8 + indent * 16}px;">
+      <span class="itree-chevron">${isLeaf ? '' : (chevron ? '▼' : '▶')}</span>
+      <div class="itree-icon" style="background:${iconBg};color:${iconFg};">${iconText}</div>
+      <span class="itree-name" style="color:${nameColor};">${name}</span>
+      <div class="itree-actions"><div class="itree-sep"></div><div class="itree-action-btn" title="開く">↗</div></div>
+    </div>`;
+  }
+  function valueRow(indent, value) {
+    return `<div class="itree-item" style="padding-left:${8 + indent * 16}px;cursor:default;">
+      <span class="itree-chevron"></span>
+      <span style="color:#8888a0;padding-left:21px;">${value}</span>
+    </div>`;
+  }
+
+  // root: flow
+  el.innerHTML += row(0, flowOpen, 'rgba(20,184,166,0.2)', fc, '⇢', fc, 'transistor_iv_flow', false);
+
+  if (!flowOpen) return;
+
+  // formula
+  el.innerHTML += row(1, formulaOpen, 'rgba(99,102,241,0.2)', fm, 'fx', fm, 'calc_drain_current', false);
+
+  if (!formulaOpen) return;
+
+  // Vgs: DefaultInput port → leaf（展開不可）
+  el.innerHTML += row(2, false, 'rgba(6,182,212,0.2)', ip, '▶', ip, 'Vgs', true);
+
+  // Vth: Const → expandable
+  el.innerHTML += row(2, constOpen, 'rgba(245,158,11,0.2)', cn, 'C', cn, 'Vth', false);
+
+  if (!constOpen) return;
+
+  // Const value leaf
+  el.innerHTML += valueRow(3, '0.7');
+}
+
+function applyScenario(idx, btn) {
+  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTree(idx);
+  renderKatex(idx);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  function tryRender() {
+    if (typeof katex === 'undefined') { setTimeout(tryRender, 50); return; }
+    applyScenario(0, document.querySelector('.scenario-btn.active'));
+  }
+  tryRender();
+});
+</script>
+</body>
+</html>
