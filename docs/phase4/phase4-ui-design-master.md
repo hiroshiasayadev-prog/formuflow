@@ -320,13 +320,12 @@ Formulaはプリミティブな計算のみを定義する。他のFormula・Flo
 
 > 関連ファイル: `spec/01-layout.md`（デバッグパネル）, `spec/10-debug-panel.md`（詳細）, `spec/12-error-feedback.md`（エラー表示）
 
-| 機能 | ドメイン | IT |
-|---|---|---|
-| エッジの値を虫眼鏡で確認 | ✅ | ✅ |
-| テストケース設定（Input/Output） | ✅ | ✅ |
-| SQL実行結果・クエリ確認 | ❌ | ✅ |
-| API疎通確認 | ❌ | ✅ |
-| ColumnRefs / FilterConditionの中身確認 | ❌ | ✅ |
+### デバッグ機能一覧
+
+- エッジの値を虫眼鏡で確認
+- テストケース設定（Input/Output）
+- SQL実行結果・クエリ確認（SQLタブ）
+- ColumnRefs / FilterConditionの中身確認（IRタブ）
 
 ### エッジ値のUI表示
 
@@ -343,16 +342,15 @@ Formulaはプリミティブな計算のみを定義する。他のFormula・Flo
 
 **開閉タイミング**
 - デフォルト: 閉じた状態
-- 現在のタブでエラー発生時: 自動でオープン
-- `View > Show Debug` でIT向けタブ（SQL / IR）を有効化
+- 現在のタブでエラー発生時: 自動でオープン（PROBLEMSタブで開く）
 
 **タブ構成**
 
-| タブ | 内容 | 表示条件 |
-|---|---|---|
-| `PROBLEMS` | エラー・警告の一覧 | 常時 |
-| `SQL` | 生成SQL・実行計画 | Show Debug 有効時のみ |
-| `IR` | AST / IR dump | Show Debug 有効時のみ |
+| タブ | 内容 |
+|---|---|
+| `PROBLEMS` | エラー・警告の一覧 |
+| `SQL` | 生成SQL・実行計画 |
+| `IR` | AST / IR dump |
 
 **PROBLEMSのフォーマット**
 ```
