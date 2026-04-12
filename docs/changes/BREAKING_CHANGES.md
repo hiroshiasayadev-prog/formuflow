@@ -7,6 +7,28 @@
 
 <!-- エントリはここから下に追記していく -->
 
+## [2026-04-12] 06-formula-editor.mdをディレクトリ構成にリファクタ
+
+**変更内容:**
+`docs/spec/06-formula-editor.md`（単一ファイル）を`docs/spec/06-formula/`ディレクトリに分割した。
+Formulaエディタは機能が多く（引数・式・KaTeX・保存・Testパネル・Built-in）、単一ファイルでは後から参照する仕様書（バックエンドAPI・DB設計等）が肥大化したdocを参照しにくくなるため。
+各state diagram（D-06-1〜D-06-6）は対応する機能ファイルの末尾に埋め込み。
+
+分割後の構成:
+- `index.md` — 概要・ページ構造・ヘッダー・参照元バー・ショートカット・未決事項
+- `06a-inputs.md` — 引数（INPUTS）・D-06-4
+- `06b-expression.md` — 式エリア・出力型・KaTeX・D-06-5・D-06-6
+- `06c-save.md` — 保存モデル・ダイアログ・D-06-1・D-06-2
+- `06d-test-panel.md` — Testパネル・D-06-3
+- `06e-builtin.md` — Built-in扱い
+
+**影響doc:**
+- [x] docs/spec/06-formula/（新規作成・全6ファイル）
+- [x] docs/doc-policy.md — doc一覧を更新
+- [ ] docs/spec/06-formula-editor.md — 旧ファイル削除（手動で行うこと）
+- [x] docs/spec/07-formula-inspect.md — depends_onの参照先を06-formula/index.mdに更新（元々参照なしのため変更不要）
+- [x] docs/phase4/phase4-ui-design-master.md — 06への参照があれば更新
+
 ## [2026-04-12] 02/03の責務分離：ノード仕様を03に一本化
 
 **変更内容:**

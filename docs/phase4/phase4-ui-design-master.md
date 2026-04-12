@@ -227,7 +227,7 @@ Component
 
 ## 7. Formulaエディタの方針
 
-> 関連ファイル: `spec/06-formula-editor.md`（詳細仕様）, `spec/01-layout.md`（右パネル・Testパネル）, `spec/04-sidebar.md`（ツリーのBバッジ・赤字表示）, `spec/09-default-input.md`（Testパネルの構造共通化）
+> 関連ファイル: `spec/06-formula/`（詳細仕様 — index.md / 06a-inputs.md / 06b-expression.md / 06c-save.md / 06d-test-panel.md / 06e-builtin.md）, `spec/01-layout.md`（右パネル・Testパネル）, `spec/04-sidebar.md`（ツリーのBバッジ・赤字表示）, `spec/09-default-input.md`（Testパネルの構造共通化）
 
 ### Formula vs Built-in の分離
 
