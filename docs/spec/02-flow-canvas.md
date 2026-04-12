@@ -208,6 +208,71 @@ container-body
 
 ---
 
+## State Diagrams
+
+### D-02-1: DeleteモードのON/OFF
+
+```mermaid
+stateDiagram-v2
+    [*] --> OFF
+
+    OFF --> ON : Deleteボタンクリック
+
+    ON --> OFF : Deleteボタン再クリック
+    ON --> OFF : node/edge以外クリック
+    ON --> OFF : node/edge削除（Shiftなし）
+    ON --> ON  : node/edge削除（Shift押し）
+```
+
+### D-02-2: ハンドルD&D中のフィードバック状態
+
+```mermaid
+stateDiagram-v2
+    [*] --> idle
+
+    idle --> dragging : mousedown（handleつかむ）
+
+    state dragging {
+        [*] --> ok
+        [*] --> warn
+        [*] --> error
+        ok : ok<br/>handle hover有効
+        warn : warn<br/>type-badge・var-nameをオレンジ化
+        error : error<br/>type-badge・var-nameを灰色化 / ✕ overlay
+    }
+
+    dragging --> idle : mouseup（接続成立 or 接続なし）<br/>全フィードバックリセット
+```
+
+> 各handleのフィードバック状態（ok/warn/error）はドラッグ開始時に一括計算し、mouseupで全リセットする。
+
+### D-02-3: Map/ZipコンテナのSlot状態
+
+```mermaid
+stateDiagram-v2
+    [*] --> empty
+
+    empty --> occupied : formulaをslotにドロップ<br/>（I/Oポート動的生成・タイトル更新）
+
+    occupied --> empty : formulaを取り外す
+```
+
+> `empty` 時はslotに `drop formula here` ヒントを表示。`occupied` 時はslotにformulaが収まりinput/outputポートが動的生成される。
+
+### D-02-4: inputポートのフリップ状態
+
+```mermaid
+stateDiagram-v2
+    [*] --> scalar
+
+    scalar --> array  : フリップボタンクリック<br/>（バッジ→Col、ボタン緑）
+    array  --> scalar : フリップボタンクリック<br/>（バッジ→元の型、ボタン初期色）
+```
+
+> フリップ状態はポートごとに独立。全portがscalar → outputはformula本来の型。1つでもarray → outputは `Col`。
+
+---
+
 ## 将来実装（Phase 6）
 
 - 選択中Componentに`Ctrl+C / Ctrl+V / Delete key`

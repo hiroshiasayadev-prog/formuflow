@@ -154,6 +154,10 @@ docs/doc-policy.md を読み、Front Matter仕様に従って、指定されたd
 2. `docs/changes/BREAKING_CHANGES.md`を読み、`[ ]`（未反映）の項目を確認する
 3. 必要なdocのFront Matter（`---`ブロック）を確認し、必要なものだけ全文取得する
 
+### mermaidダイアグラムの注意事項
+
+- ラベル内の改行は `\n` ではなく `<br/>` を使う（mermaidは `\n` を改行として解釈しない）
+
 ### md-sectionを使ったdoc読み込みパターン
 
 `md-section` MCPツールを使うとmdファイルのセクションをピンポイントで取得できる。全文読みより大幅にtokenを節約できる。
