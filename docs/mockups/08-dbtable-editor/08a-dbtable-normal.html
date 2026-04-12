@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>08a — DatabaseTable Editor: 通常状態</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#111118; --bg2:#16161f; --bg3:#1c1c28; --bg4:#22222f;
+  --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14);
+  --text:#e2e2e8; --text2:#8888a0; --text3:#55556a;
+  --accent:#6366f1; --accent2:#a5b4fc;
+  --green:#4ade80; --green-bg:rgba(74,222,128,0.15);
+  --rose:#fb7185; --rose-bg:rgba(251,113,133,0.15);
+  --amber:#fcd34d; --amber-bg:rgba(252,211,77,0.12);
+}
+body { background:#0a0a12; font-family:'JetBrains Mono','Fira Code','Cascadia Code',monospace; font-size:12px; color:var(--text); padding:24px; display:flex; flex-direction:column; gap:16px; }
+.scene-label { font-size:10px; color:var(--text3); letter-spacing:0.1em; font-weight:600; text-transform:uppercase; }
+.scenario-row { display:flex; gap:8px; flex-wrap:wrap; }
+.scenario-btn { font-size:10px; font-family:inherit; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:4px; padding:4px 10px; cursor:pointer; }
+.scenario-btn:hover { color:var(--text); border-color:rgba(255,255,255,0.25); }
+.scenario-btn.active { color:var(--accent2); border-color:rgba(99,102,241,0.5); background:rgba(99,102,241,0.1); }
+
+.shell { background:var(--bg); border:1px solid var(--border2); border-radius:8px; overflow:hidden; display:flex; flex-direction:column; height:660px; }
+.menubar { height:30px; background:#0d0d14; border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 12px; flex-shrink:0; }
+.menubar-title { color:var(--accent); font-weight:700; font-size:11px; letter-spacing:0.1em; margin-right:16px; }
+.menubar-item { color:var(--text2); font-size:11px; padding:0 8px; height:30px; display:flex; align-items:center; }
+.body-row { display:flex; flex:1; min-height:0; }
+
+/* iconbar */
+.iconbar { width:48px; background:#0e0e18; border-right:1px solid var(--border); display:flex; flex-direction:column; align-items:center; padding:8px 0; flex-shrink:0; }
+.icon-btn { width:40px; height:36px; display:flex; align-items:center; justify-content:center; border-radius:4px; color:var(--text3); font-size:13px; cursor:pointer; position:relative; }
+.icon-btn:hover { color:var(--text2); }
+.icon-btn.active { color:var(--text); }
+.icon-btn.active::before { content:''; position:absolute; left:-8px; top:50%; transform:translateY(-50%); width:2px; height:18px; background:var(--accent); border-radius:0 1px 1px 0; }
+.icon-btn-bot { margin-top:auto; }
+
+/* sidebar */
+.sidebar { width:220px; background:var(--bg2); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+.sidebar-hdr { height:30px; padding:0 10px; display:flex; align-items:center; color:var(--text3); font-size:10px; letter-spacing:0.1em; font-weight:600; border-bottom:1px solid var(--border); }
+.tree { padding:4px 0; overflow-y:auto; flex:1; }
+.tree-item { height:24px; display:flex; align-items:center; padding:0 8px; gap:4px; color:var(--text2); font-size:11px; cursor:pointer; white-space:nowrap; }
+.tree-item:hover { background:rgba(255,255,255,0.05); color:var(--text); }
+.tree-item.active { background:rgba(255,255,255,0.08); color:var(--text); }
+
+/* main */
+.main { flex:1; display:flex; flex-direction:column; min-width:0; }
+.tabbar { height:35px; background:#0e0e18; border-bottom:1px solid var(--border); display:flex; align-items:stretch; flex-shrink:0; }
+.tab { display:flex; align-items:center; gap:5px; padding:0 12px 0 10px; border-right:1px solid var(--border); color:var(--text2); font-size:11px; cursor:pointer; white-space:nowrap; position:relative; }
+.tab.active { background:var(--bg); color:var(--text); }
+.tab.active::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:var(--rose); }
+.tab-close { opacity:0; font-size:10px; color:var(--text2); margin-left:2px; }
+.tab:hover .tab-close { opacity:1; }
+
+/* page */
+.page { flex:1; display:flex; flex-direction:column; min-height:0; overflow-y:auto; }
+
+/* dbtable page header */
+.dbt-header { padding:16px 20px 12px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.dbt-header-row { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.dbt-icon { width:28px; height:28px; background:var(--rose-bg); border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; color:var(--rose); flex-shrink:0; }
+.dbt-title { font-size:15px; font-weight:600; color:var(--text); letter-spacing:0.01em; }
+.dbt-path { margin-left:auto; font-size:10px; color:var(--text3); white-space:nowrap; }
+.dbt-desc { font-size:11px; color:var(--text2); padding-left:38px; line-height:1.5; }
+
+/* body */
+.dbt-body { padding:20px; display:flex; flex-direction:column; gap:22px; overflow-y:auto; flex:1; }
+
+.section-label { font-size:10px; color:var(--text3); letter-spacing:0.1em; font-weight:600; margin-bottom:8px; }
+
+/* title input */
+.text-input { background:var(--bg3); border:1px solid var(--border2); border-radius:4px; padding:6px 10px; font-family:inherit; font-size:12px; color:var(--text); outline:none; width:100%; max-width:360px; }
+.text-input:focus { border-color:rgba(99,102,241,0.5); }
+
+/* connection drop zone */
+.conn-zone { background:var(--bg3); border:1px solid var(--border2); border-radius:5px; padding:10px 14px; display:flex; align-items:center; gap:10px; max-width:420px; }
+.conn-status { width:8px; height:8px; border-radius:50%; background:var(--green); flex-shrink:0; }
+.conn-name { font-size:12px; color:var(--text); font-weight:600; }
+.conn-folder { font-size:10px; color:var(--text3); margin-left:2px; }
+.conn-clear { margin-left:auto; font-size:11px; color:var(--text3); cursor:pointer; padding:2px 5px; border-radius:3px; }
+.conn-clear:hover { color:var(--rose); background:var(--rose-bg); }
+
+/* schema select */
+.select-input { background:var(--bg3); border:1px solid var(--border2); border-radius:4px; padding:6px 10px; font-family:inherit; font-size:12px; color:var(--text); outline:none; appearance:none; width:200px; cursor:pointer; }
+.select-wrap { position:relative; display:inline-block; }
+.select-wrap::after { content:'▾'; position:absolute; right:10px; top:50%; transform:translateY(-50%); color:var(--text3); pointer-events:none; font-size:10px; }
+
+/* table list */
+.table-search { background:var(--bg3); border:1px solid var(--border2); border-radius:4px 4px 0 0; padding:6px 10px 6px 28px; font-family:inherit; font-size:11px; color:var(--text); outline:none; width:100%; max-width:420px; position:relative; }
+.table-search-wrap { position:relative; max-width:420px; }
+.table-search-wrap::before { content:'🔍'; position:absolute; left:9px; top:50%; transform:translateY(-50%); font-size:10px; pointer-events:none; }
+.table-list { background:var(--bg3); border:1px solid var(--border2); border-top:none; border-radius:0 0 4px 4px; max-width:420px; max-height:140px; overflow-y:auto; }
+.table-row { padding:6px 12px; font-size:11px; color:var(--text2); cursor:pointer; display:flex; align-items:center; gap:6px; }
+.table-row:hover { background:rgba(255,255,255,0.05); color:var(--text); }
+.table-row.selected { background:rgba(251,113,133,0.12); color:var(--rose); }
+.table-row.selected::before { content:'▶'; font-size:8px; }
+
+/* columns table */
+.col-table { width:100%; max-width:560px; border-collapse:collapse; }
+.col-table th { text-align:left; font-size:10px; color:var(--text3); font-weight:600; letter-spacing:0.08em; padding:0 12px 6px 0; border-bottom:1px solid var(--border); }
+.col-table td { padding:5px 12px 5px 0; border-bottom:1px solid var(--border); font-size:11px; color:var(--text); vertical-align:middle; }
+.col-table tr:last-child td { border-bottom:none; }
+.col-table tr:hover td { background:rgba(255,255,255,0.02); }
+.type-fw { color:var(--green); font-size:10px; font-weight:600; background:var(--green-bg); border-radius:3px; padding:1px 6px; display:inline-block; }
+.type-db { color:var(--text3); font-size:10px; }
+
+/* statusbar */
+.statusbar { height:22px; background:var(--rose); display:flex; align-items:center; padding:0 10px; gap:12px; font-size:10px; color:rgba(255,255,255,0.85); flex-shrink:0; }
+.sb-right { margin-left:auto; display:flex; gap:12px; }
+.sb-dot { width:6px; height:6px; border-radius:50%; background:#4ade80; display:inline-block; margin-right:3px; }
+</style>
+</head>
+<body>
+
+<div class="scene-label">08a — DatabaseTable Editor / 通常状態</div>
+
+<div class="scenario-row">
+  <button class="scenario-btn active" onclick="setScene('normal')">通常（設定済み・接続正常）</button>
+  <button class="scenario-btn" onclick="setScene('unsaved')">未保存インジケータ</button>
+</div>
+
+<div class="shell">
+  <div class="menubar">
+    <span class="menubar-title">formuflow</span>
+    <span class="menubar-item">File</span>
+    <span class="menubar-item">Edit</span>
+    <span class="menubar-item">View</span>
+    <span class="menubar-item">Run</span>
+    <span class="menubar-item">Help</span>
+  </div>
+
+  <div class="body-row">
+    <!-- iconbar -->
+    <div class="iconbar">
+      <div class="icon-btn active">⊟</div>
+      <div class="icon-btn">⌕</div>
+      <div class="icon-btn" style="font-size:9px;font-weight:700;">DB</div>
+      <div class="icon-btn icon-btn-bot">⚙</div>
+    </div>
+
+    <!-- sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-hdr">COMPONENT TREE</div>
+      <div class="tree">
+        <div class="tree-item"><span style="width:8px"></span>▼<span style="margin-left:4px;">user</span></div>
+        <div class="tree-item"><span style="width:20px"></span>▼<span style="margin-left:4px;">flows</span></div>
+        <div class="tree-item"><span style="width:32px"></span><span style="color:#14b8a6;font-size:10px;">⇢</span><span style="margin-left:4px;">GetIVChar</span></div>
+        <div class="tree-item"><span style="width:20px"></span>▼<span style="margin-left:4px;">formulas</span></div>
+        <div class="tree-item"><span style="width:32px"></span><span style="color:var(--accent2);font-size:10px;">fx</span><span style="margin-left:4px;">CalcGainBandwidth</span></div>
+        <div class="tree-item"><span style="width:20px"></span>▼<span style="margin-left:4px;">dbtables</span></div>
+        <div class="tree-item active"><span style="width:32px"></span><span style="font-size:8px;font-weight:700;color:var(--rose);">DB</span><span style="margin-left:4px;">transistor_iv_table</span></div>
+        <div class="tree-item"><span style="width:32px"></span><span style="font-size:8px;font-weight:700;color:var(--rose);">DB</span><span style="margin-left:4px;">gain_params</span></div>
+      </div>
+    </div>
+
+    <!-- main -->
+    <div class="main">
+      <div class="tabbar">
+        <div class="tab" style="border-top-color:#14b8a6;">
+          <span style="color:#14b8a6;font-size:10px;">⇢</span>
+          <span>GetIVChar</span>
+          <span class="tab-close">✕</span>
+        </div>
+        <div class="tab active">
+          <span style="color:var(--rose);font-size:9px;font-weight:700;">DB</span>
+          <span id="tab-title">transistor_iv_table</span>
+          <span class="tab-close">✕</span>
+        </div>
+      </div>
+
+      <div class="page">
+        <!-- header -->
+        <div class="dbt-header">
+          <div class="dbt-header-row">
+            <div class="dbt-icon">DB</div>
+            <span class="dbt-title" id="page-title">transistor_iv_table</span>
+            <span class="dbt-path">/dbtables/transistor_iv_table</span>
+          </div>
+          <div class="dbt-desc">トランジスタのIV特性テーブル</div>
+        </div>
+
+        <!-- body -->
+        <div class="dbt-body">
+
+          <!-- TITLE -->
+          <div>
+            <div class="section-label">TITLE</div>
+            <input class="text-input" id="title-input" type="text" value="transistor_iv_table">
+          </div>
+
+          <!-- CONNECTION -->
+          <div>
+            <div class="section-label">CONNECTION</div>
+            <div class="conn-zone" id="conn-zone">
+              <div class="conn-status" id="conn-dot"></div>
+              <div>
+                <span class="conn-name">transistor_db</span>
+                <span class="conn-folder"> (production)</span>
+              </div>
+              <span class="conn-clear" title="接続をクリア">✕</span>
+            </div>
+          </div>
+
+          <!-- SCHEMA -->
+          <div>
+            <div class="section-label">SCHEMA</div>
+            <div class="select-wrap">
+              <select class="select-input">
+                <option>public</option>
+                <option>analytics</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- TABLE -->
+          <div>
+            <div class="section-label">TABLE</div>
+            <div class="table-search-wrap">
+              <input class="table-search" type="text" placeholder="テーブルを検索..." id="tbl-search" oninput="filterTables(this.value)">
+            </div>
+            <div class="table-list" id="table-list">
+              <div class="table-row selected">transistor_iv_data</div>
+              <div class="table-row">transistor_params</div>
+              <div class="table-row">gain_curves</div>
+              <div class="table-row">bias_conditions</div>
+              <div class="table-row">measurement_log</div>
+            </div>
+          </div>
+
+          <!-- COLUMNS -->
+          <div>
+            <div class="section-label">COLUMNS</div>
+            <table class="col-table">
+              <thead>
+                <tr>
+                  <th>列名</th>
+                  <th>formuflow型</th>
+                  <th>DB型</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>transistor_id</td><td><span class="type-fw">Str</span></td><td><span class="type-db">varchar</span></td></tr>
+                <tr><td>vgs</td><td><span class="type-fw">F64</span></td><td><span class="type-db">float8</span></td></tr>
+                <tr><td>vds</td><td><span class="type-fw">F64</span></td><td><span class="type-db">float8</span></td></tr>
+                <tr><td>ids</td><td><span class="type-fw">F64</span></td><td><span class="type-db">float8</span></td></tr>
+                <tr><td>measured_at</td><td><span class="type-fw">Str</span></td><td><span class="type-db">timestamp</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span>formuflow</span>
+    <span style="color:rgba(255,255,255,0.5)">main</span>
+    <div class="sb-right">
+      <span><span class="sb-dot"></span>DuckDB</span>
+      <span>UTF-8</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const allTables = ['transistor_iv_data','transistor_params','gain_curves','bias_conditions','measurement_log'];
+
+function filterTables(q) {
+  const list = document.getElementById('table-list');
+  const filtered = allTables.filter(t => t.includes(q));
+  list.innerHTML = filtered.map((t,i) =>
+    `<div class="table-row${i===0&&!q?' selected':''}" onclick="selectTable(this)">${t}</div>`
+  ).join('');
+}
+
+function selectTable(el) {
+  document.querySelectorAll('.table-row').forEach(r => r.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function setScene(scene) {
+  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+
+  const tabTitle = document.getElementById('tab-title');
+  const dot = document.getElementById('conn-dot');
+
+  if (scene === 'unsaved') {
+    tabTitle.textContent = '● transistor_iv_table';
+  } else {
+    tabTitle.textContent = 'transistor_iv_table';
+    dot.style.background = 'var(--green)';
+  }
+}
+</script>
+</body>
+</html>

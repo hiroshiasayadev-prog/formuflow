@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>08b — DatabaseTable Editor: 未設定状態</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:      #111118;
+  --bg2:     #16161f;
+  --bg3:     #1c1c28;
+  --bg4:     #22222f;
+  --border:  rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.14);
+  --text:    #e2e2e8;
+  --text2:   #8888a0;
+  --text3:   #55556a;
+  --accent:  #6366f1;
+  --accent2: #a5b4fc;
+  --green:   #4ade80;
+  --green-bg:rgba(74,222,128,0.15);
+  --rose:    #fda4af;
+  --rose-bg: rgba(253,164,175,0.15);
+  --rose-accent: #f43f5e;
+  --amber:   #fbbf24;
+  --amber-bg:rgba(251,191,36,0.12);
+}
+
+body {
+  background: #0a0a12;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 12px;
+  color: var(--text);
+  padding: 24px;
+}
+
+.scene-label {
+  font-size: 10px; color: var(--text3);
+  letter-spacing: 0.1em; font-weight: 600;
+  margin-bottom: 12px; text-transform: uppercase;
+}
+
+.shell {
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  height: 580px;
+}
+
+.menubar {
+  height: 30px; background: #0d0d14;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 12px; flex-shrink: 0;
+}
+.menubar-title { color: var(--accent); font-weight: 700; font-size: 11px; letter-spacing: 0.1em; margin-right: 16px; }
+.menubar-item { color: var(--text2); font-size: 11px; padding: 0 8px; height: 30px; display: flex; align-items: center; cursor: pointer; }
+
+.body-row { display: flex; flex: 1; min-height: 0; }
+
+.iconbar {
+  width: 48px; background: #0e0e18;
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  align-items: center; padding: 8px 0; flex-shrink: 0;
+}
+.icon-btn {
+  width: 40px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 4px; color: var(--text3); font-size: 13px;
+  cursor: pointer; position: relative;
+}
+.icon-btn.active { color: var(--text); }
+.icon-btn.active::before {
+  content: ''; position: absolute; left: -8px; top: 50%; transform: translateY(-50%);
+  width: 2px; height: 18px; background: var(--accent); border-radius: 0 1px 1px 0;
+}
+.icon-btn-bot { margin-top: auto; }
+
+.sidebar {
+  width: 220px; background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; flex-shrink: 0;
+}
+.sidebar-hdr {
+  height: 30px; padding: 0 10px;
+  display: flex; align-items: center;
+  color: var(--text3); font-size: 10px;
+  letter-spacing: 0.1em; font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+.tree { padding: 4px 0; overflow-y: auto; flex: 1; }
+.tree-item {
+  height: 24px; display: flex; align-items: center;
+  padding: 0 8px; gap: 4px;
+  color: var(--text2); font-size: 11px;
+  cursor: pointer; white-space: nowrap;
+}
+.tree-item:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+.tree-item.active { background: rgba(255,255,255,0.08); color: var(--text); }
+.db-badge {
+  font-size: 8px; font-weight: 700;
+  color: var(--rose); background: var(--rose-bg);
+  border-radius: 2px; padding: 0 3px;
+}
+.warn-badge {
+  font-size: 9px; color: var(--amber); margin-left: auto;
+}
+
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+.tabbar {
+  height: 35px; background: #0e0e18;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: stretch; flex-shrink: 0;
+}
+.tab {
+  display: flex; align-items: center; gap: 5px;
+  padding: 0 12px 0 10px;
+  border-right: 1px solid var(--border);
+  color: var(--text2); font-size: 11px;
+  cursor: pointer; white-space: nowrap; position: relative;
+}
+.tab.active { background: var(--bg); color: var(--text); }
+.tab.active::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: var(--rose-accent);
+}
+.tab-warn { font-size: 9px; color: var(--amber); margin-left: 2px; }
+.tab-close { opacity: 0; font-size: 10px; color: var(--text2); margin-left: 2px; }
+.tab:hover .tab-close { opacity: 1; }
+
+.page { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+
+.dbt-header {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.dbt-header-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+}
+.dbt-icon {
+  width: 28px; height: 28px; background: var(--rose-bg);
+  border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 700; color: var(--rose); flex-shrink: 0;
+}
+.dbt-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.dbt-path { font-size: 10px; color: var(--text3); white-space: nowrap; }
+.dbt-desc { font-size: 11px; color: var(--text2); padding-left: 38px; }
+
+/* warning badge in header */
+.header-warn {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 4px;
+  background: var(--amber-bg);
+  border: 1px solid rgba(251,191,36,0.3);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 10px; color: var(--amber);
+  font-weight: 600;
+}
+
+.dbt-body {
+  flex: 1; padding: 20px;
+  display: flex; flex-direction: column; gap: 24px;
+  overflow-y: auto;
+}
+
+.section-label {
+  font-size: 10px; color: var(--text3);
+  letter-spacing: 0.1em; font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.text-input {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  padding: 7px 10px;
+  font-family: inherit; font-size: 12px; color: var(--text);
+  width: 100%; outline: none;
+}
+
+/* connection drop zone (empty) */
+.conn-zone-empty {
+  background: var(--bg3);
+  border: 1px dashed rgba(255,255,255,0.18);
+  border-radius: 5px;
+  padding: 18px 16px;
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px;
+  max-width: 360px;
+  color: var(--text3); font-size: 11px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.conn-zone-empty:hover {
+  border-color: rgba(253,164,175,0.35);
+  background: rgba(253,164,175,0.04);
+  color: var(--text2);
+}
+.drop-icon { font-size: 16px; opacity: 0.5; }
+
+/* disabled section */
+.disabled-section { opacity: 0.3; pointer-events: none; }
+
+.select-input {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  padding: 7px 10px;
+  font-family: inherit; font-size: 12px; color: var(--text);
+  width: 200px; outline: none; cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2355556a'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+}
+
+.table-search {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 4px 4px 0 0; border-bottom: none;
+  padding: 7px 10px 7px 28px;
+  font-family: inherit; font-size: 11px; color: var(--text);
+  width: 100%; outline: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2355556a' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: 8px center;
+}
+.table-list {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 0 0 4px 4px;
+  height: 80px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text3); font-size: 11px;
+}
+
+.statusbar {
+  height: 22px; background: var(--rose-accent);
+  display: flex; align-items: center;
+  padding: 0 10px; gap: 12px;
+  font-size: 10px; color: rgba(255,255,255,0.9); flex-shrink: 0;
+}
+.sb-right { margin-left: auto; display: flex; gap: 12px; }
+.sb-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; display: inline-block; margin-right: 3px; }
+</style>
+</head>
+<body>
+
+<div class="scene-label">08b — DatabaseTable Editor / 未設定状態（接続・テーブル未選択）</div>
+
+<div class="shell">
+  <div class="menubar">
+    <span class="menubar-title">formuflow</span>
+    <span class="menubar-item">File</span>
+    <span class="menubar-item">Edit</span>
+    <span class="menubar-item">View</span>
+    <span class="menubar-item">Run</span>
+    <span class="menubar-item">Help</span>
+  </div>
+
+  <div class="body-row">
+    <div class="iconbar">
+      <div class="icon-btn active">⊟</div>
+      <div class="icon-btn">⌕</div>
+      <div class="icon-btn" style="font-size:9px;font-weight:700;color:var(--rose);">DB</div>
+      <div class="icon-btn icon-btn-bot">⚙</div>
+    </div>
+
+    <div class="sidebar">
+      <div class="sidebar-hdr">COMPONENT TREE</div>
+      <div class="tree">
+        <div class="tree-item"><span style="width:8px"></span>▼<span style="margin-left:4px;">user</span></div>
+        <div class="tree-item"><span style="width:20px"></span>▶<span style="margin-left:4px;">flows</span></div>
+        <div class="tree-item"><span style="width:20px"></span>▶<span style="margin-left:4px;">formulas</span></div>
+        <div class="tree-item"><span style="width:20px"></span>▼<span style="margin-left:4px;">dbtables</span></div>
+        <!-- ⚠バッジ付き（未設定） -->
+        <div class="tree-item active">
+          <span style="width:32px"></span>
+          <span class="db-badge">DB</span>
+          <span style="margin-left:4px;">new_table</span>
+          <span class="warn-badge">⚠</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="tabbar">
+        <div class="tab active">
+          <span style="font-size:8px;font-weight:700;color:var(--rose);">DB</span>
+          <span>new_table</span>
+          <!-- タブにも⚠ -->
+          <span class="tab-warn">⚠</span>
+          <span class="tab-close">✕</span>
+        </div>
+      </div>
+
+      <div class="page">
+        <!-- header: ⚠バッジあり -->
+        <div class="dbt-header">
+          <div class="dbt-header-row">
+            <div class="dbt-icon">DB</div>
+            <span class="dbt-title">new_table</span>
+            <span class="dbt-path" style="margin-left:8px;">/dbtables/new_table</span>
+            <div class="header-warn">⚠ 未設定</div>
+          </div>
+          <div class="dbt-desc" style="color:var(--text3);">概要を入力...</div>
+        </div>
+
+        <div class="dbt-body">
+
+          <!-- TITLE -->
+          <div>
+            <div class="section-label">TITLE</div>
+            <input class="text-input" style="max-width:320px;" placeholder="テーブルを選択すると自動入力されます" />
+          </div>
+
+          <!-- CONNECTION: 空のドロップゾーン -->
+          <div>
+            <div class="section-label">CONNECTION</div>
+            <div class="conn-zone-empty">
+              <span class="drop-icon">⤵</span>
+              <span>サイドバーのDB接続をここにドロップ</span>
+            </div>
+          </div>
+
+          <!-- SCHEMA: disabled -->
+          <div class="disabled-section">
+            <div class="section-label">SCHEMA</div>
+            <select class="select-input" disabled>
+              <option>— 接続を選択してください —</option>
+            </select>
+          </div>
+
+          <!-- TABLE: disabled -->
+          <div class="disabled-section">
+            <div class="section-label">TABLE</div>
+            <div style="max-width:360px;">
+              <input class="table-search" placeholder="テーブルを検索..." disabled />
+              <div class="table-list">接続を設定するとテーブルが表示されます</div>
+            </div>
+          </div>
+
+          <!-- COLUMNS: disabled -->
+          <div class="disabled-section">
+            <div class="section-label">COLUMNS</div>
+            <div style="background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:16px;max-width:480px;color:var(--text3);font-size:11px;text-align:center;">
+              テーブルを選択すると列情報が表示されます
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span>formuflow</span>
+    <span style="color:rgba(255,255,255,0.5)">main</span>
+    <div class="sb-right">
+      <span><span class="sb-dot"></span>DuckDB</span>
+      <span>UTF-8</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
