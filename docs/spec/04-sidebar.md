@@ -1,7 +1,7 @@
 ---
 scope: docs/spec/04-sidebar.md
 status: confirmed
-last_updated: 2026-04-06
+last_updated: 2026-04-12
 summary: >
   左端アイコンバーと各サイドパネルの仕様。パネルは4種（Componentツリー・検索・DB接続・Extensions）。
   ツリーのエントリ状態表示・削除ルール・PACKAGESセクション・
@@ -436,4 +436,160 @@ Package "{package名}" をアンインストールしますか？
 ```
 📦
 該当するPackageが見つかりませんでした
+```
+
+---
+
+## State Diagrams / Flowcharts
+
+### D-04-1: アイコンバーのアクティブ状態
+
+各アイコン（tree / search / db / extensions）は独立してactive/inactiveをトグルする。
+同アイコン再クリックでパネルを閉じ（inactive）、別アイコンクリックで別パネルへ切り替わる（前のアイコンはinactive）。
+
+```mermaid
+stateDiagram-v2
+    state "アイコンバー" as bar {
+        state tree_state <<choice>>
+        state search_state <<choice>>
+        state db_state <<choice>>
+        state ext_state <<choice>>
+    }
+
+    state "tree: inactive" as tree_off
+    state "tree: active" as tree_on
+    state "search: inactive" as search_off
+    state "search: active" as search_on
+    state "db: inactive" as db_off
+    state "db: active" as db_on
+    state "extensions: inactive" as ext_off
+    state "extensions: active" as ext_on
+
+    [*] --> tree_off
+    [*] --> search_off
+    [*] --> db_off
+    [*] --> ext_off
+
+    tree_off --> tree_on: treeアイコン クリック
+    tree_on --> tree_off: treeアイコン 再クリック<br/>（または他アイコン クリック）
+
+    search_off --> search_on: searchアイコン クリック
+    search_on --> search_off: searchアイコン 再クリック<br/>（または他アイコン クリック）
+
+    db_off --> db_on: dbアイコン クリック
+    db_on --> db_off: dbアイコン 再クリック<br/>（または他アイコン クリック）
+
+    ext_off --> ext_on: extensionsアイコン クリック
+    ext_on --> ext_off: extensionsアイコン 再クリック<br/>（または他アイコン クリック）
+```
+
+> 注: 複数アイコンが同時にactiveになることはない（1つがactiveになると他はinactiveに戻る）。
+
+---
+
+### D-04-2: DB接続ステータス
+
+各DB接続エントリは `○`（未確認）・`●`（接続OK）・`✕`（エラー）の3状態を持つ。
+ステータスの更新は手動または処理トリガーのみ（常時ポーリングなし）。
+
+```mermaid
+stateDiagram-v2
+    state "○ 未確認" as unknown
+    state "● 接続OK" as ok
+    state "✕ エラー" as error
+
+    [*] --> unknown: 接続を新規作成
+
+    unknown --> ok: SELECT 1 成功
+    unknown --> error: SELECT 1 失敗 / タイムアウト
+
+    ok --> ok: SELECT 1 成功
+    ok --> error: SELECT 1 失敗 / タイムアウト
+
+    error --> ok: SELECT 1 成功
+    error --> error: SELECT 1 失敗 / タイムアウト
+
+    note right of ok
+        トリガー:
+        ① 接続エントリhoverの↺ボタン
+        ② ヘッダーの↺ Refreshボタン
+        ③ その接続を使う処理のついで
+    end note
+```
+
+---
+
+### D-04-3: contribパッケージのインストール状態
+
+```mermaid
+stateDiagram-v2
+    state "未インストール" as none
+    state "インストール中" as installing
+    state "インストール済み" as installed
+
+    [*] --> none
+
+    none --> installing: Installボタン クリック
+    installing --> installed: インストール成功
+    installing --> none: インストール失敗<br/>（エラー表示）
+    installed --> none: Uninstallボタン クリック<br/>→ 確認ダイアログ → Uninstall
+```
+
+> `installing` 中はボタンが `Installing...`（disabled）になる。<br/>
+> アンインストール時はPACKAGESセクションからも該当パッケージが消える。
+
+---
+
+### D-04-4: Component削除フロー
+
+削除対象の種別によってダイアログ分岐が異なる。
+
+```mermaid
+flowchart TD
+    Start([右クリック → Delete]) --> judge{対象の種別}
+
+    judge -->|builtin| dlg_builtin["ダイアログ:<br/>このComponentは削除できません<br/>[OK]"]
+    dlg_builtin --> End_ng([キャンセル])
+
+    judge -->|PACKAGES内のComponent単体| dlg_pkg_single["ダイアログ:<br/>Packageのcomponent単体は削除不可<br/>Package全体をアンインストールしますか？<br/>[Cancel] [Uninstall]"]
+    dlg_pkg_single -->|Cancel| End_ng
+    dlg_pkg_single -->|Uninstall| uninstall[パッケージをアンインストール]
+    uninstall --> End_ok
+
+    judge -->|PACKAGESのパッケージ| dlg_pkg["ダイアログ:<br/>Package をアンインストールしますか？<br/>[Cancel] [Uninstall]"]
+    dlg_pkg -->|Cancel| End_ng
+    dlg_pkg -->|Uninstall| uninstall
+
+    judge -->|参照あり| dlg_ref["ダイアログ:<br/>参照先一覧を表示<br/>参照を先に削除してください<br/>[OK]"]
+    dlg_ref --> End_ng
+
+    judge -->|参照なし| dlg_confirm["ダイアログ:<br/>削除の確認<br/>[Cancel] [Delete]"]
+    dlg_confirm -->|Cancel| End_ng
+    dlg_confirm -->|Delete| delete[Component削除]
+    delete --> End_ok([削除完了])
+```
+
+---
+
+### D-04-5: PAKAGESセクションの更新フロー
+
+バックエンドがパッケージ更新のたびにUUIDを発行。UIは10秒ポーリングでUUIDを監視し、変化があれば自動更新する。手動↺は即時確認。
+
+```mermaid
+flowchart TD
+    subgraph auto[自動ポーリング（10秒間隔）]
+        Poll([10秒経過]) --> FetchUUID[バックエンドにUUID確認]
+        FetchUUID --> changed{UUID変化あり?}
+        changed -->|Yes| Refresh[PAKAGESセクション自動更新]
+        changed -->|No| Wait[何もしない]
+        Refresh --> Poll
+        Wait --> Poll
+    end
+
+    subgraph manual[手動]
+        ManualBtn([↺ Refreshボタン クリック]) --> FetchUUID2[バックエンドにUUID確認]
+        FetchUUID2 --> changed2{UUID変化あり?}
+        changed2 -->|Yes| Refresh2[PAKAGESセクション更新]
+        changed2 -->|No| Wait2[何もしない]
+    end
 ```
