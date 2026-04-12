@@ -1,7 +1,7 @@
 ---
 scope: docs/spec/05-tabs-navigation.md
 status: confirmed
-last_updated: 2026-04-06
+last_updated: 2026-04-12
 summary: >
   タブバーおよびページ遷移の仕様。VSCode準拠のタブ挙動・重複抑制・アクティブタブの
   トップライン（Component種別カラー）・タブを開くトリガー・全Component種別の
@@ -94,6 +94,41 @@ VSCode準拠。
 ### タブを閉じる
 - `×` ボタンクリック（hover時に表示）
 - 閉じた後のアクティブタブ: VSCode準拠（直前にアクティブだったタブ、なければ左隣）
+
+---
+
+### D-05-1: タブの開き方（重複抑制）
+
+```mermaid
+flowchart TD
+    A([開くトリガー発火<br/>ダブルクリック / ✏クリック]) --> B{同一IDのタブが<br/>既に存在する？}
+    B -- Yes --> C[そのタブをアクティブ化]
+    B -- No --> D[アクティブタブの右隣に<br/>新規タブを挿入]
+    D --> E[新規タブをアクティブ化]
+```
+
+---
+
+### D-05-2: タブを閉じた後のアクティブタブ遷移
+
+```mermaid
+stateDiagram-v2
+    [*] --> HasActive : タブあり（通常状態）
+
+    HasActive --> CheckHistory : タブを閉じる（×クリック）
+
+    state CheckHistory <<choice>>
+    CheckHistory --> ActivatePrev : 直前にアクティブだったタブあり
+    CheckHistory --> CheckLeft : 直前アクティブなし
+
+    state CheckLeft <<choice>>
+    CheckLeft --> ActivateLeft : 左隣のタブあり
+    CheckLeft --> Empty : 左隣なし（タブ0枚）
+
+    ActivatePrev --> HasActive : 直前タブをアクティブ化
+    ActivateLeft --> HasActive : 左隣タブをアクティブ化
+    Empty --> [*] : タブなし（空状態）
+```
 
 ---
 
