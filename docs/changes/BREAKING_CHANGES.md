@@ -7,6 +7,32 @@
 
 <!-- エントリはここから下に追記していく -->
 
+## [2026-04-12] 08-dbtable-editor: state diagram追記・依存参照修正・sidebar validation設計方針決定
+
+**変更内容:**
+D-08-1〜D-08-4のstate diagram（およびflowchart）を08-dbtable-editor.mdに追記。
+あわせて以下を変更:
+- `depends_on`の`06-formula-editor.md`（旧単一ファイル・削除予定）を`06-formula/06c-save.md`に修正
+- `last_updated`を2026-04-12に更新
+
+D-08-3のpublishフローから「影響Flowツリー赤字表示」を意図的に除外。
+理由: これはDBtable保存の責務ではなく、サイドバー（Componentツリー）が管理すべきValidation状態表示の話であるため。
+
+**Sidebar Validation設計方針（今回決定・04-sidebar.mdに未反映）:**
+- 表示: VSCode準拠（`✕ ComponentName` / `⚠ ComponentName`）
+- 評価タイミング:
+  - タブで開いているComponent → 常時評価
+  - 変更が発生したComponent → 依存グラフを再帰的に辿り影響範囲を非同期評価（数loopごとにsleep挟み）
+  - それ以外 → DBに保存済みのvalidationフラグをそのまま表示
+- 分類:
+  - `error`（✕）: 永続的・構造的（Formula引数変更・DBスキーマ変更によるエッジ無効など）
+  - `warning`（⚠）: 一時的・環境依存（DB接続断など）
+- 非同期評価の詳細はbackend設計時に詰める
+
+**影響doc:**
+- [x] docs/spec/08-dbtable-editor.md — state diagram追記・depends_on修正・last_updated更新
+- [ ] docs/spec/04-sidebar.md — Validation状態管理（表示・評価タイミング・分類）の仕様追記が必要
+
 ## [2026-04-12] 07-formula-inspect: ツリー構造をcompo列挙からarg-compo対応の2段構造に変更
 
 **変更内容:**
