@@ -1,23 +1,23 @@
 ---
 scope: docs/spec/02-flow-canvas.md
 status: confirmed
-last_updated: 2026-04-06
+last_updated: 2026-04-12
 summary: >
-  Flowキャンバスのインタラクション仕様。ノード構造・カラーテーマ・エッジ型チェック表示・
+  Flowキャンバスのインタラクション仕様。ズーム・パン・エッジ接続・
   ハンドルD&Dフィードバック・Map/Zipコンテナノード・削除モードを定義する。
+  ノード単体のUI仕様（構造・カラー・バッジ等）は03-component-nodes.mdを参照。
   ダブルクリックはタブ遷移（削除ではない）。削除はDeleteモード専用。
 key_decisions:
   - ダブルクリック = 該当ComponentをタブでOpen（削除操作ではない）
   - 削除はDeleteモードボタン専用（赤ボタンON時のみクリックで削除）
-  - 型バッジ・エッジカラーはComponent種別カラーと分離し緑統一
   - エッジ接続D&D開始時に全handleの型互換性をリアルタイムフィードバック
   - Map/ZipコンテナはformulaドロップでI/Oポートを動的生成
   - KaTeXシンボルのON/OFFはキャンバス右上ボタンで切り替え
 depends_on:
-  - docs/spec/01-layout.md   # タブ遷移・右パネル仕様
+  - docs/spec/01-layout.md              # タブ遷移・右パネル仕様
+  - docs/spec/03-component-nodes.md     # ノード単体UI仕様（カラー・構造・バッジ等）
 related_specs:
-  - docs/spec/03-component-nodes.md  # Component型の詳細定義
-  - docs/spec/05-tabs-navigation.md  # タブ遷移の挙動
+  - docs/spec/05-tabs-navigation.md     # タブ遷移の挙動
 open_issues:
   - 型表記の詳細（Col[F64]等の型パラメータ）はPhase 5で確定
   - Map/Zipのaxis指定UI（複数inputのarray軸指定）はPhase 5以降
@@ -41,57 +41,6 @@ open_issues:
 
 - ズーム・パン操作はReactFlowに委任（独自UIなし）
 - 右上に「全体フィット」ボタン1個のみ配置（`32×32px`、角丸）
-
----
-
-## Componentノード 共通仕様
-
-### 構造
-```
-node-header   ← アイコン + タイトル
-node-katex    ← = {KaTeX式}（Formulaのみ）
-node-body     ← 左: inputポート列 | divider | 右: outputポート列
-```
-
-### カラーテーマ（Component種別ごと）
-
-| Component | アクセントカラー |
-|---|---|
-| Formula | indigo `#6366f1` |
-| Flow | teal `#14b8a6` |
-| Const / Consts | amber `#f59e0b` |
-| DatabaseTable | rose `#f43f5e` |
-| DefaultInput | cyan `#06b6d4` |
-| DefaultReturn | purple `#a855f7` |
-| Map / Zip（Container） | bright indigo `#818cf8` |
-
-アクセントカラーはheader背景・アイコン背景・node-nameテキストのみに適用。  
-ポート・バッジ・エッジには適用しない。
-
-### 型バッジ
-
-- 全Component・全エッジで**緑統一**: `color: #4ade80`, `background: rgba(74,222,128,0.15)`
-- Component種別カラーとは完全に分離（役割が違う）
-
-### ポートレイアウト
-
-- inputハンドル: ノード左端
-- outputハンドル: ノード右端
-- 各ポート行: `handle | [flip-btn] | type-badge | var-name`
-- port-label（INPUT / OUTPUT）はポート列の上部に表示
-
-### FormulaノードのKaTeX
-
-- headerとbodyの間に`node-katex`エリアを挿入
-- 表示形式: `= {式}`（左辺はタイトルに既にあるため省略）
-- `data-katex`属性にLaTeX文字列を持たせる
-- outputのvar-nameはFormulaのタイトルそのまま
-- KaTeXシンボル（`katexSymbol`）のenable/disableは右上の「kaTeX」ボタンにより切り替え。表示中はkaTeXの文字を白く、非表示中は灰色にする。
-
-### 選択状態
-
-- クリックで選択: ノード外枠に `rgba(255,255,255,0.45)` のリングを表示
-- キャンバスの空白クリックで選択解除
 
 ---
 
@@ -270,6 +219,34 @@ stateDiagram-v2
 ```
 
 > フリップ状態はポートごとに独立。全portがscalar → outputはformula本来の型。1つでもarray → outputは `Col`。
+
+### D-02-5: ノードの選択状態
+
+```mermaid
+stateDiagram-v2
+    [*] --> unselected
+
+    unselected --> selected   : ノードクリック
+    selected   --> unselected : キャンバス空白クリック
+    selected   --> selected   : 別ノードクリック（前ノードはunselectedへ）
+```
+
+### D-02-6: ハンドルのhover状態
+
+```mermaid
+stateDiagram-v2
+    [*] --> normal
+
+    normal --> hovered : mouseenter<br/>（scale(1.5)・border緑）
+    hovered --> normal : mouseleave
+
+    note right of normal
+        D&D中かつerror handleの場合:
+        mouseenterしてもhoverに遷移しない
+    end note
+```
+
+> D&D中のok/warn/error判定と全体フィードバックはD-02-2を参照。
 
 ---
 

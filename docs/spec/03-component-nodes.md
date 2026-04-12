@@ -1,16 +1,19 @@
 ---
 scope: docs/spec/03-component-nodes.md
 status: confirmed
-last_updated: 2026-04-06
+last_updated: 2026-04-12
 summary: >
   Flowキャンバス上に配置される全Component種別のノードUI仕様。
-  共通ノード構造・カラーテーマ・型バッジ・ハンドルスタイルと、
+  共通ノード構造・カラーテーマ・型バッジ・ポートレイアウト・ハンドルスタイルと、
   各Component種別（Formula/Flow/Const/Consts/DatabaseTable/
   DefaultInput/DefaultReturn/Map/Zip）の個別仕様を定義する。
+  インタラクション（選択・hover等）のstate diagramは02-flow-canvas.mdに集約。
 key_decisions:
   - アクセントカラーはheader背景・アイコン・name色のみに適用（ポート・バッジ・エッジには使わない）
   - 型バッジはComponent種別カラーと完全分離し緑統一（#4ade80）
+  - ポート行レイアウト: handle | [flip-btn] | type-badge | var-name
   - FormulaノードのみKaTeXエリアをheader下に挿入（data-katex属性でLaTeX保持）
+  - KaTeXシンボルのON/OFFはキャンバス右上ボタンで切り替え
   - Map/ZipコンテナはFormulaドロップ前後でポート構成が動的に変化
   - DefaultReturnはoutputなし・DefaultInputはinputなし
 depends_on:
@@ -36,11 +39,11 @@ open_issues:
   .node-katex        ← = {KaTeX式}（Formulaのみ）
   .node-body
     .ports-col.inputs
-      .port-label    ← "input"
-      .port-row × N  ← handle | type-badge | var-name
+      .port-label    ← "INPUT"
+      .port-row × N  ← handle | [flip-btn] | type-badge | var-name
     .divider
     .ports-col.outputs
-      .port-label    ← "output"
+      .port-label    ← "OUTPUT"
       .port-row × N  ← handle | type-badge | var-name
 ```
 
@@ -94,6 +97,8 @@ background: rgba(74,222,128,0.15)
 - アイコン: `fx`
 - headerとbodyの間にKaTeXエリア
   - 表示: `= {式}`（左辺省略、`data-katex`属性にLaTeX文字列）
+  - KaTeXシンボル（`katexSymbol`）のenable/disableはキャンバス右上の「kaTeX」ボタンで切り替え
+  - 表示中: ボタン文字を白、非表示中: 灰色
 - output var-name: Formulaのタイトルそのまま
 
 ### FlowComponent
@@ -130,8 +135,7 @@ border: 1.5px solid rgba(255,255,255,0.25)
 background: #111118
 ```
 
-- hover時: 拡大（`scale(1.5)`）、border色が緑（`#4ade80`）に
-- ドラッグ中に型不整合と判定されたhandle: hover無効、`✕`をoverlay
+- hover状態・D&D中のフィードバック状態（ok/warn/error）: `02-flow-canvas.md` D-02-5・D-02-6を参照
 
 ---
 
