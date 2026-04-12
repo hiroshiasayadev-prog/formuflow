@@ -7,6 +7,21 @@
 
 <!-- エントリはここから下に追記していく -->
 
+## [2026-04-12] 07-formula-inspect: ツリー構造をcompo列挙からarg-compo対応の2段構造に変更
+
+**変更内容:**
+Inspectツリーの展開時の子表示を「展開可能ノードを単純に列挙」から「arg名行 + compo行の2段構造」に変更。
+DAGにおいて同一compoが複数の引数に繋がるケースでargとcompoの対応が表現できなかったため。
+あわせてKaTeX変数名の解決ルール（上流componentのtitle/port名の伝搬）、
+未接続argの扱い（ツリー上はarg名行のみ、KaTeX上で暗め表示）、
+FlowComponent展開時の内部FlowDefaultInputのport名利用、
+D-07-1〜D-07-3のstatディアグラムを追記。
+
+**影鿹doc:**
+- [x] docs/spec/07-formula-inspect.md — ツリー構造変更・KaTeX連動ルール追記・state diagram追記・Front Matter更新
+- [ ] docs/mockups/07-formula-inspect/07b-inspect-tree-katex.html — ツリーがarg-compo2段になっていないため要更新
+- [ ] docs/mockups/07-formula-inspect/07d-inspect-flow-nest.html — 同上
+
 ## [2026-04-12] 06-formula-editor.mdをディレクトリ構成にリファクタ
 
 **変更内容:**
