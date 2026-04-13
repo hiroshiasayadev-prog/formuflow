@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>09c — DefaultInput: Testパネル（Flow側）</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#111118; --bg2:#16161f; --bg3:#1c1c28;
+  --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14);
+  --text:#e2e2e8; --text2:#8888a0; --text3:#55556a;
+  --accent:#6366f1; --accent2:#a5b4fc;
+  --green:#4ade80; --green-bg:rgba(74,222,128,0.15);
+  --flow-ic:#14b8a6; --flow-h:rgba(20,184,166,0.18); --flow-c:#5eead4;
+  --pass:#4ade80; --pass-bg:rgba(74,222,128,0.12);
+  --fail:#f43f5e; --fail-bg:rgba(244,63,94,0.12);
+  --disabled:#3a3a50;
+}
+body { background:#0a0a12; font-family:'JetBrains Mono','Fira Code',monospace; font-size:12px; color:var(--text); padding:24px; }
+.scene-label { font-size:10px; color:var(--text3); letter-spacing:0.1em; font-weight:600; margin-bottom:12px; text-transform:uppercase; }
+.shell { background:var(--bg); border:1px solid var(--border2); border-radius:8px; overflow:hidden; display:flex; flex-direction:column; height:700px; }
+.menubar { height:30px; background:#0d0d14; border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 12px; flex-shrink:0; }
+.menubar-title { color:var(--accent); font-weight:700; font-size:11px; letter-spacing:0.1em; margin-right:16px; }
+.menubar-item { color:var(--text2); font-size:11px; padding:0 8px; height:30px; display:flex; align-items:center; }
+.body-row { display:flex; flex:1; min-height:0; }
+.iconbar { width:48px; background:#0e0e18; border-right:1px solid var(--border); display:flex; flex-direction:column; align-items:center; padding:8px 0; flex-shrink:0; }
+.icon-btn { width:40px; height:36px; display:flex; align-items:center; justify-content:center; border-radius:4px; color:var(--text3); font-size:13px; position:relative; }
+.icon-btn.active { color:var(--text); }
+.icon-btn.active::before { content:''; position:absolute; left:-8px; top:50%; transform:translateY(-50%); width:2px; height:18px; background:var(--accent); border-radius:0 1px 1px 0; }
+.icon-btn-bot { margin-top:auto; }
+.main { flex:1; display:flex; flex-direction:column; min-width:0; }
+.tabbar { height:35px; background:#0e0e18; border-bottom:1px solid var(--border); display:flex; align-items:stretch; flex-shrink:0; }
+.tab { display:flex; align-items:center; gap:5px; padding:0 12px 0 10px; border-right:1px solid var(--border); color:var(--text2); font-size:11px; position:relative; cursor:pointer; }
+.tab.active { background:var(--bg); color:var(--text); }
+.tab.active::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:var(--flow-ic); }
+.canvas-area { flex:1; display:flex; min-height:0; position:relative; }
+.canvas { flex:1; background-image:radial-gradient(circle,rgba(255,255,255,0.07) 1.5px,transparent 1.5px); background-size:24px 24px; position:relative; }
+.canvas-test-btn { position:absolute; top:12px; right:12px; font-size:10px; color:var(--flow-c); background:rgba(20,184,166,0.15); border:1px solid rgba(20,184,166,0.4); border-radius:4px; padding:4px 10px; cursor:pointer; z-index:10; font-family:inherit; }
+.node { position:absolute; background:var(--bg2); border:1px solid var(--border2); border-radius:6px; min-width:130px; }
+.node-header { padding:5px 8px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:6px; }
+.node-icon { width:20px; height:20px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; }
+.node-body { padding:6px 8px; font-size:9px; color:var(--text3); }
+.port-row { display:flex; align-items:center; gap:4px; padding:2px 0; }
+.port-dot { width:8px; height:8px; border-radius:50%; border:1.5px solid rgba(255,255,255,0.2); background:#111118; }
+.test-panel { width:270px; background:var(--bg2); border-left:1px solid var(--border2); display:flex; flex-direction:column; flex-shrink:0; }
+.test-panel-hdr { height:35px; display:flex; align-items:center; justify-content:space-between; padding:0 12px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.test-panel-title { font-size:11px; font-weight:600; color:var(--text); letter-spacing:0.04em; }
+.test-panel-close { font-size:11px; color:var(--text3); cursor:pointer; }
+.test-panel-body { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; }
+.case-wrapper { position:relative; margin-bottom:26px; }
+.test-case { background:var(--bg3); border:1px solid var(--border2); border-radius:5px; overflow:hidden; }
+.test-case-hdr { display:flex; align-items:center; justify-content:space-between; padding:6px 10px; border-bottom:1px solid var(--border); font-size:10px; cursor:pointer; }
+.test-case-name { color:var(--text2); }
+.badge-pass { background:var(--pass-bg); color:var(--pass); border-radius:3px; padding:1px 6px; font-size:9px; font-weight:600; }
+.badge-fail { background:var(--fail-bg); color:var(--fail); border-radius:3px; padding:1px 6px; font-size:9px; font-weight:600; }
+.test-case-body { padding:8px 10px; display:flex; flex-direction:column; gap:5px; }
+.test-row { display:flex; justify-content:space-between; align-items:center; font-size:10px; gap:8px; }
+.test-key { color:var(--text3); flex-shrink:0; }
+.test-type { color:#4ade80; background:rgba(74,222,128,0.15); border-radius:3px; padding:1px 4px; font-size:9px; font-weight:600; }
+.test-val-input { background:transparent; border:none; border-bottom:1px solid var(--border2); color:var(--text); font-family:inherit; font-size:10px; text-align:right; outline:none; flex:1; min-width:0; padding:1px 2px; }
+.test-val-input:focus { border-bottom-color:rgba(20,184,166,0.5); }
+.test-divider { height:1px; background:var(--border); margin:3px 0; }
+.test-output { display:flex; justify-content:space-between; align-items:center; font-size:10px; gap:8px; }
+.test-output-key { color:var(--text3); flex-shrink:0; }
+.test-output-expected-input { background:transparent; border:none; border-bottom:1px solid var(--border2); color:var(--text2); font-family:inherit; font-size:10px; text-align:right; outline:none; flex:1; min-width:0; padding:1px 2px; }
+.test-output-expected-input:focus { border-bottom-color:rgba(20,184,166,0.5); }
+.actual-pass { color:var(--pass); font-size:10px; }
+.actual-fail { color:var(--fail); font-size:10px; }
+.test-case-collapsed { background:var(--bg3); border:1px solid var(--border2); border-radius:5px; padding:6px 10px; display:flex; align-items:center; justify-content:space-between; font-size:10px; cursor:pointer; }
+.collapsed-name { color:var(--text3); }
+.collapsed-hint { font-size:9px; color:var(--text3); }
+.case-actions { position:absolute; bottom:-18px; right:0; display:flex; gap:6px; padding:2px 0; visibility:hidden; }
+.case-wrapper:hover .case-actions { visibility:visible; }
+.case-action-btn { font-size:11px; cursor:pointer; color:var(--text3); padding:0 2px; }
+.case-action-btn:hover { color:var(--text2); }
+.case-action-btn.disabled { color:var(--disabled); cursor:not-allowed; }
+.add-test-btn { display:flex; align-items:center; justify-content:center; gap:4px; background:rgba(255,255,255,0.03); border:1px dashed var(--border2); border-radius:5px; padding:8px; font-size:10px; color:var(--text3); cursor:pointer; margin-top:18px; }
+.add-test-btn:hover { color:var(--text2); border-color:rgba(255,255,255,0.2); }
+.run-all-btn { margin:8px 10px 10px; background:rgba(20,184,166,0.15); border:1px solid rgba(20,184,166,0.35); border-radius:4px; padding:6px; font-size:10px; color:var(--flow-c); cursor:pointer; text-align:center; font-family:inherit; }
+.run-all-btn:hover { background:rgba(20,184,166,0.25); }
+.statusbar { height:22px; background:var(--accent); display:flex; align-items:center; padding:0 10px; gap:12px; font-size:10px; color:rgba(255,255,255,0.85); flex-shrink:0; }
+.sb-right { margin-left:auto; display:flex; gap:12px; }
+.sb-dot { width:6px; height:6px; border-radius:50%; background:#4ade80; display:inline-block; margin-right:3px; }
+.scenarios { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+.sc-btn { font-size:10px; color:var(--text2); background:rgba(255,255,255,0.05); border:1px solid var(--border2); border-radius:4px; padding:4px 10px; cursor:pointer; font-family:inherit; }
+.sc-btn:hover { color:var(--text); background:rgba(255,255,255,0.09); }
+.sc-btn.active { color:var(--flow-c); border-color:rgba(20,184,166,0.4); background:rgba(20,184,166,0.08); }
+</style>
+</head>
+<body>
+<div class="scene-label">09c — Flowキャンバス / Testパネル（Flow側）</div>
+<div class="scenarios">
+  <button class="sc-btn active" onclick="setScene('mixed')">① 混在（展開+折りたたみ）</button>
+  <button class="sc-btn" onclick="setScene('link-dialog')">② 🔗 参照削除ダイアログ</button>
+</div>
+<div class="shell">
+  <div class="menubar">
+    <span class="menubar-title">formuflow</span>
+    <span class="menubar-item">File</span><span class="menubar-item">Edit</span>
+    <span class="menubar-item">View</span><span class="menubar-item">Run</span>
+  </div>
+  <div class="body-row">
+    <div class="iconbar">
+      <div class="icon-btn active">⊟</div>
+      <div class="icon-btn">⌕</div>
+      <div class="icon-btn" style="font-size:9px;font-weight:700;">DB</div>
+      <div class="icon-btn">⬡</div>
+      <div class="icon-btn icon-btn-bot">⚙</div>
+    </div>
+    <div class="main">
+      <div class="tabbar">
+        <div class="tab active">
+          <span style="font-size:11px;color:var(--flow-ic)">⇢</span>
+          <span>GetIVChar</span>
+          <span style="opacity:0;font-size:10px;margin-left:2px;">✕</span>
+        </div>
+      </div>
+      <div class="canvas-area">
+        <div class="canvas">
+          <button class="canvas-test-btn">⬡ Test</button>
+          <div class="node" style="top:60px;left:30px;">
+            <div class="node-header">
+              <div class="node-icon" style="background:rgba(6,182,212,0.18);color:#67e8f9;">▶</div>
+              <span style="font-size:10px;color:#67e8f9;">TransistorIVInput</span>
+            </div>
+            <div class="node-body">
+              <div class="port-row"><div class="port-dot"></div><span style="color:#4ade80;font-size:9px;">F64</span><span style="margin-left:4px;">transistorId</span></div>
+              <div class="port-row"><div class="port-dot"></div><span style="color:#4ade80;font-size:9px;">F64</span><span style="margin-left:4px;">vBias</span></div>
+              <div class="port-row"><div class="port-dot"></div><span style="color:#4ade80;font-size:9px;">Col</span><span style="margin-left:4px;">gain</span></div>
+            </div>
+          </div>
+          <div class="node" style="top:80px;left:230px;">
+            <div class="node-header">
+              <div class="node-icon" style="background:rgba(99,102,241,0.22);color:#a5b4fc;">fx</div>
+              <span style="font-size:10px;color:#a5b4fc;">CalcIVChar</span>
+            </div>
+            <div class="node-body">
+              <div class="port-row"><div class="port-dot"></div><span style="color:#4ade80;font-size:9px;">Col</span><span style="margin-left:4px;">result</span></div>
+            </div>
+          </div>
+          <svg style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;">
+            <line x1="190" y1="110" x2="230" y2="110" stroke="#4ade80" stroke-width="1.5" stroke-opacity="0.4"/>
+          </svg>
+        </div>
+        <div class="test-panel" id="test-panel">
+          <div class="test-panel-hdr">
+            <span class="test-panel-title">TEST</span>
+            <span class="test-panel-close" onclick="closePanel()">✕</span>
+          </div>
+          <div class="test-panel-body" id="panel-body"></div>
+          <button class="run-all-btn">▶ すべて実行</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="statusbar">
+    <span>formuflow</span><span style="color:rgba(255,255,255,0.5)">main</span>
+    <div class="sb-right"><span><span class="sb-dot"></span>DuckDB</span><span>UTF-8</span></div>
+  </div>
+</div>
+<div id="dialog-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:100;align-items:center;justify-content:center;">
+  <div style="background:#1c1c28;border:1px solid rgba(255,255,255,0.14);border-radius:8px;padding:20px;width:320px;font-family:'JetBrains Mono',monospace;font-size:11px;">
+    <div style="font-size:12px;font-weight:600;color:#e2e2e8;margin-bottom:10px;">参照解除の確認</div>
+    <div id="dialog-msg" style="color:#8888a0;line-height:1.7;margin-bottom:16px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button onclick="closeDialog()" style="font-family:inherit;font-size:10px;padding:5px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);border-radius:4px;color:#8888a0;cursor:pointer;">キャンセル</button>
+      <button onclick="confirmDelete()" style="font-family:inherit;font-size:10px;padding:5px 12px;background:rgba(244,63,94,0.2);border:1px solid rgba(244,63,94,0.4);border-radius:4px;color:#fda4af;cursor:pointer;">参照解除して削除</button>
+    </div>
+  </div>
+</div>
+<script>
+let pendingDeleteId = null;
+let caseCounter = 3;
+function setScene(name) {
+  document.querySelectorAll('.sc-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  if(name==='mixed') buildMixedScene();
+  else if(name==='link-dialog') { buildMixedScene(); setTimeout(()=>showLinkDialog('fc1','"CalcTransistorGain"'),100); }
+}
+function buildMixedScene() {
+  caseCounter = 3;
+  document.getElementById('panel-body').innerHTML = `
+    <div class="case-wrapper" id="fc1">
+      <div class="test-case">
+        <div class="test-case-hdr" onclick="toggleCase('fc1')"><span class="test-case-name">case 1</span><span class="badge-pass">PASS</span></div>
+        <div class="test-case-body" id="fc1-body">
+          <div class="test-row"><span class="test-key">transistorId <span class="test-type">F64</span></span><input class="test-val-input" value="1.5"></div>
+          <div class="test-row"><span class="test-key">vBias <span class="test-type">F64</span></span><input class="test-val-input" value="2.0"></div>
+          <div class="test-row"><span class="test-key">gain <span class="test-type">Col</span></span><input class="test-val-input" value="[1.0,2.0,3.0]"></div>
+          <div class="test-divider"></div>
+          <div class="test-output"><span class="test-output-key">期待値 <span class="test-type">Col</span></span><input class="test-output-expected-input" value="[0.6,0.7,0.8]"></div>
+          <div class="test-output"><span class="test-output-key">実行結果</span><span class="actual-pass">[0.6, 0.7, 0.8]</span></div>
+        </div>
+      </div>
+      <div class="case-actions">
+        <span class="case-action-btn" onclick="runCase('fc1')">▶</span>
+        <span class="case-action-btn" onclick="duplicateCase('fc1')">📋</span>
+        <span class="case-action-btn" onclick="showLinkDialog('fc1','&quot;CalcTransistorGain&quot;')">🔗</span>
+      </div>
+    </div>
+    <div class="case-wrapper" id="fc2">
+      <div class="test-case">
+        <div class="test-case-hdr" onclick="toggleCase('fc2')"><span class="test-case-name">case 2</span><span class="badge-fail">FAIL</span></div>
+        <div class="test-case-body" id="fc2-body">
+          <div class="test-row"><span class="test-key">transistorId <span class="test-type">F64</span></span><input class="test-val-input" value="3.0"></div>
+          <div class="test-row"><span class="test-key">vBias <span class="test-type">F64</span></span><input class="test-val-input" value="1.0"></div>
+          <div class="test-row"><span class="test-key">gain <span class="test-type">Col</span></span><input class="test-val-input" value="[2.0,4.0]"></div>
+          <div class="test-divider"></div>
+          <div class="test-output"><span class="test-output-key">期待値 <span class="test-type">Col</span></span><input class="test-output-expected-input" value="[1.5,2.5]"></div>
+          <div class="test-output"><span class="test-output-key">実行結果</span><span class="actual-fail">[1.6, 2.6]</span></div>
+        </div>
+      </div>
+      <div class="case-actions">
+        <span class="case-action-btn" onclick="runCase('fc2')">▶</span>
+        <span class="case-action-btn" onclick="duplicateCase('fc2')">📋</span>
+        <span class="case-action-btn" onclick="deleteCase('fc2')">🚮</span>
+      </div>
+    </div>
+    <div class="case-wrapper" id="fc3">
+      <div class="test-case-collapsed" onclick="toggleCase('fc3')"><span class="collapsed-name">case 3</span><span class="collapsed-hint">expected未入力 ▶</span></div>
+      <div id="fc3-body" style="display:none;background:var(--bg3);border:1px solid var(--border2);border-top:none;border-radius:0 0 5px 5px;padding:8px 10px;">
+        <div class="test-row"><span class="test-key">transistorId <span class="test-type">F64</span></span><input class="test-val-input" value="5.0"></div>
+        <div class="test-row"><span class="test-key">vBias <span class="test-type">F64</span></span><input class="test-val-input" value="3.0"></div>
+        <div class="test-row"><span class="test-key">gain <span class="test-type">Col</span></span><input class="test-val-input" value="[1.0]"></div>
+        <div class="test-divider"></div>
+        <div class="test-output"><span class="test-output-key">期待値 <span class="test-type">Col</span></span><input class="test-output-expected-input" placeholder="未入力"></div>
+      </div>
+      <div class="case-actions">
+        <span class="case-action-btn disabled" title="expected未入力のため実行不可">▶</span>
+        <span class="case-action-btn" onclick="duplicateCase('fc3')">📋</span>
+        <span class="case-action-btn" onclick="deleteCase('fc3')">🚮</span>
+      </div>
+    </div>
+    <div class="add-test-btn" onclick="addCase()">＋ テストケースを追加</div>`;
+}
+function toggleCase(id) {
+  const body = document.getElementById(id+'-body');
+  if(!body) return;
+  const isHidden = body.style.display==='none';
+  body.style.display = isHidden ? 'flex' : 'none';
+  if(isHidden) { body.style.flexDirection='column'; body.style.gap='5px'; }
+}
+function runCase(id) {
+  const hdr = document.querySelector(`#${id} .test-case-hdr`);
+  if(!hdr) return;
+  const b = hdr.querySelector('.badge-pass,.badge-fail');
+  if(b){b.className='badge-pass';b.textContent='PASS';}
+  else{const nb=document.createElement('span');nb.className='badge-pass';nb.textContent='PASS';hdr.appendChild(nb);}
+}
+function deleteCase(id) { document.getElementById(id)?.remove(); }
+function duplicateCase(id) {
+  const orig = document.getElementById(id);
+  const clone = orig.cloneNode(true);
+  caseCounter++;
+  clone.id = 'fc'+caseCounter;
+  const nameEl = clone.querySelector('.test-case-name,.collapsed-name');
+  if(nameEl) nameEl.textContent='case '+caseCounter;
+  const bodyEl = clone.querySelector('[id$="-body"]');
+  if(bodyEl) bodyEl.id='fc'+caseCounter+'-body';
+  const hdr = clone.querySelector('.test-case-hdr,.test-case-collapsed');
+  if(hdr) hdr.setAttribute('onclick',`toggleCase('fc${caseCounter}')`);
+  orig.insertAdjacentElement('afterend',clone);
+}
+function addCase() {
+  caseCounter++;
+  const id='fc'+caseCounter;
+  document.querySelector('.add-test-btn').insertAdjacentHTML('beforebegin',`
+    <div class="case-wrapper" id="${id}">
+      <div class="test-case-collapsed" onclick="toggleCase('${id}')"><span class="collapsed-name">case ${caseCounter}</span><span class="collapsed-hint">expected未入力 ▶</span></div>
+      <div id="${id}-body" style="display:none;background:var(--bg3);border:1px solid var(--border2);border-top:none;border-radius:0 0 5px 5px;padding:8px 10px;flex-direction:column;gap:5px;">
+        <div class="test-row"><span class="test-key">transistorId <span class="test-type">F64</span></span><input class="test-val-input" value=""></div>
+        <div class="test-row"><span class="test-key">vBias <span class="test-type">F64</span></span><input class="test-val-input" value=""></div>
+        <div class="test-row"><span class="test-key">gain <span class="test-type">Col</span></span><input class="test-val-input" value=""></div>
+        <div class="test-divider"></div>
+        <div class="test-output"><span class="test-output-key">期待値 <span class="test-type">Col</span></span><input class="test-output-expected-input" placeholder="未入力"></div>
+      </div>
+      <div class="case-actions">
+        <span class="case-action-btn disabled">▶</span>
+        <span class="case-action-btn" onclick="duplicateCase('${id}')">📋</span>
+        <span class="case-action-btn" onclick="deleteCase('${id}')">🚮</span>
+      </div>
+    </div>`);
+}
+function showLinkDialog(cwId, flowDesc) {
+  pendingDeleteId = cwId;
+  document.getElementById('dialog-msg').innerHTML = `このcaseは ${flowDesc} で参照されています。<br>参照解除しますか？<br><span style="color:#f43f5e;font-size:10px;">（参照先のexpected値も削除されます）</span>`;
+  document.getElementById('dialog-overlay').style.display='flex';
+}
+function closeDialog() { document.getElementById('dialog-overlay').style.display='none'; pendingDeleteId=null; }
+function confirmDelete() { if(pendingDeleteId) document.getElementById(pendingDeleteId)?.remove(); closeDialog(); }
+function closePanel() { document.getElementById('test-panel').style.display='none'; }
+buildMixedScene();
+</script>
+</body>
+</html>

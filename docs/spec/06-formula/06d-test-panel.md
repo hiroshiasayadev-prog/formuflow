@@ -15,7 +15,7 @@ depends_on:
   - docs/spec/06-formula/index.md
   - docs/spec/06-formula/06a-inputs.md      # 引数定義を参照
 related_specs:
-  - docs/spec/09-default-input.md           # Testパネルの構造共通化
+  - docs/spec/09-default-input.md           # TestパネルのUIは類似するが実装は独立（データ所在・ライフサイクルが異なる）
 ---
 
 # 06d — Testパネル仕様

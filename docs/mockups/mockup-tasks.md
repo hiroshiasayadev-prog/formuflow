@@ -83,7 +83,7 @@
 
 ---
 
-## 08 — DatabaseTable設定ページ 未着手
+## 08 — DatabaseTable設定ページ ✅
 対象: `/dbtables/:id` の設定ページ
 含むもの:
 - 参照するDB接続の選択
@@ -93,7 +93,7 @@
 
 ---
 
-## 09 — DefaultInput設定ページ 未着手
+## 09 — DefaultInput設定ページ ✅
 対象: `/inputs/:id` の設定ページ（2タブ構成）
 含むもの:
 - [定義タブ] 引数名・型のペア定義UI
