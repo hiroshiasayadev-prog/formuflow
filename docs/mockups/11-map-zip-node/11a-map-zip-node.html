@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>11a — Map/ZipコンテナノードUI</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #111118;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 40px 48px;
+  gap: 0;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 31px, rgba(255,255,255,0.025) 31px, rgba(255,255,255,0.025) 32px),
+    repeating-linear-gradient(90deg, transparent, transparent 31px, rgba(255,255,255,0.025) 31px, rgba(255,255,255,0.025) 32px);
+}
+
+/* ── scenario bar ── */
+.scenario-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+}
+.scenario-btn {
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.05);
+  color: #888;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.scenario-btn:hover { border-color: rgba(129,140,248,0.5); color: #c7d2fe; }
+.scenario-btn.active { background: rgba(129,140,248,0.15); border-color: #818cf8; color: #c7d2fe; }
+
+/* ── canvas area ── */
+.canvas-area {
+  display: flex;
+  gap: 48px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.scene-label {
+  color: rgba(255,255,255,0.3);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+}
+
+/* ── container node ── */
+.container-node {
+  position: relative;
+  width: 420px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(129,140,248,0.35);
+  filter: drop-shadow(0 8px 32px rgba(0,0,0,0.5));
+  background: rgba(129,140,248,0.04);
+}
+
+/* header */
+.container-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  border-radius: 8px 8px 0 0;
+  background: rgba(129,140,248,0.18);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.node-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: #818cf8;
+  color: #fff;
+  flex-shrink: 0;
+}
+.node-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: #c7d2fe;
+  letter-spacing: 0.3px;
+}
+
+/* body row: inputs | slot | outputs */
+.container-body {
+  display: flex;
+  align-items: stretch;
+  min-height: 120px;
+  padding: 8px 0;
+  gap: 0;
+}
+
+/* ports-col */
+.ports-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 0;
+  min-width: 88px;
+}
+.ports-col.inputs { padding-left: 0; padding-right: 8px; align-items: flex-start; }
+.ports-col.outputs { padding-right: 0; padding-left: 8px; align-items: flex-end; }
+
+.port-label {
+  font-size: 9px;
+  color: rgba(255,255,255,0.25);
+  letter-spacing: 0.8px;
+  padding: 0 12px;
+  margin-bottom: 2px;
+}
+.ports-col.outputs .port-label { text-align: right; padding-right: 12px; }
+
+/* port row */
+.port-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  position: relative;
+}
+.ports-col.outputs .port-row { flex-direction: row-reverse; }
+
+.handle {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.25);
+  background: #111118;
+  flex-shrink: 0;
+  margin-left: -4.5px;
+}
+.ports-col.outputs .handle { margin-left: 0; margin-right: -4.5px; }
+
+.flip-btn {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: transparent;
+  color: #888;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.flip-btn.active {
+  border-color: #4ade80;
+  color: #4ade80;
+  background: rgba(74,222,128,0.08);
+}
+
+.type-badge {
+  font-size: 9px;
+  font-weight: 600;
+  color: #4ade80;
+  background: rgba(74,222,128,0.15);
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.var-name {
+  font-size: 10px;
+  color: rgba(255,255,255,0.55);
+  white-space: nowrap;
+}
+
+/* slot */
+.container-slot {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 4px 0;
+}
+
+/* slot empty */
+.slot-empty {
+  width: 100%;
+  height: 100%;
+  min-height: 90px;
+  border: 1.5px dashed rgba(129,140,248,0.35);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(129,140,248,0.45);
+  font-size: 10px;
+  letter-spacing: 0.3px;
+}
+
+/* inner formula node (occupied) */
+.inner-formula {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(99,102,241,0.10);
+  overflow: hidden;
+}
+.inner-formula-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(99,102,241,0.22);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.inner-formula-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: #6366f1;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.inner-formula-name {
+  font-size: 10px;
+  font-weight: 600;
+  color: #a5b4fc;
+}
+.inner-katex {
+  padding: 4px 10px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.6);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-style: italic;
+}
+.inner-body {
+  display: flex;
+  padding: 6px 10px;
+  gap: 24px;
+  font-size: 9px;
+}
+.inner-ports-label {
+  color: rgba(255,255,255,0.25);
+  letter-spacing: 0.5px;
+  margin-bottom: 3px;
+}
+.inner-port-row {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 2px;
+  align-items: center;
+}
+
+/* footer */
+.container-footer {
+  border-top: 1px solid rgba(255,255,255,0.07);
+  padding: 8px 12px 10px;
+  display: flex;
+  gap: 24px;
+}
+
+.footer-section {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.footer-label {
+  font-size: 9px;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.radio-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: rgba(255,255,255,0.55);
+  cursor: pointer;
+}
+.radio-row.dimmed {
+  color: rgba(255,255,255,0.2);
+  cursor: default;
+}
+.radio-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.2);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.radio-dot.checked {
+  border-color: #818cf8;
+}
+.radio-dot.checked::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #818cf8;
+}
+.radio-row.dimmed .radio-dot {
+  border-color: rgba(255,255,255,0.12);
+}
+</style>
+</head>
+<body>
+
+<div class="scenario-bar">
+  <button class="scenario-btn active" onclick="showScene('map-empty')">Map — ドロップ前</button>
+  <button class="scenario-btn" onclick="showScene('map-scalar')">Map — scalar×2</button>
+  <button class="scenario-btn" onclick="showScene('map-onearray')">Map — 1つCol化</button>
+  <button class="scenario-btn" onclick="showScene('map-twoarray')">Map — 2つCol化</button>
+  <button class="scenario-btn" onclick="showScene('zip-occupied')">Zip — occupied</button>
+</div>
+
+<div class="canvas-area" id="canvas-area">
+</div>
+
+<script>
+const SCENES = {
+
+  'map-empty': {
+    label: 'Map: ドロップ前（empty）',
+    html: `
+      <div class="container-node">
+        <div class="container-header">
+          <div class="node-icon">⊞</div>
+          <span class="node-name">Map:</span>
+        </div>
+        <div class="container-body">
+          <div class="ports-col inputs"></div>
+          <div class="container-slot">
+            <div class="slot-empty">drop formula here</div>
+          </div>
+          <div class="ports-col outputs"></div>
+        </div>
+        <div class="container-footer">
+          <div class="footer-section">
+            <div class="footer-label">Column axis</div>
+            <div class="radio-row dimmed"><div class="radio-dot"></div>—</div>
+          </div>
+        </div>
+      </div>
+    `
+  },
+
+  'map-scalar': {
+    label: 'Map: occupied / 全inputスカラー（footerはdimmed）',
+    html: `
+      <div class="container-node">
+        <div class="container-header">
+          <div class="node-icon">⊞</div>
+          <span class="node-name">Map: CalcGain</span>
+        </div>
+        <div class="container-body">
+          <div class="ports-col inputs">
+            <div class="port-label">INPUT</div>
+            <div class="port-row">
+              <div class="handle"></div>
+              <button class="flip-btn">to array</button>
+              <span class="type-badge">F64</span>
+              <span class="var-name">x</span>
+            </div>
+            <div class="port-row">
+              <div class="handle"></div>
+              <button class="flip-btn">to array</button>
+              <span class="type-badge">F64</span>
+              <span class="var-name">y</span>
+            </div>
+          </div>
+          <div class="container-slot">
+            <div class="inner-formula">
+              <div class="inner-formula-header">
+                <div class="inner-formula-icon">fx</div>
+                <span class="inner-formula-name">CalcGain</span>
+              </div>
+              <div class="inner-katex">= x · y</div>
+              <div class="inner-body">
+                <div>
+                  <div class="inner-ports-label">INPUT</div>
+                  <div class="inner-port-row"><span class="type-badge">F64</span><span style="color:rgba(255,255,255,0.4);font-size:9px">x</span></div>
+                  <div class="inner-port-row"><span class="type-badge">F64</span><span style="color:rgba(255,255,255,0.4);font-size:9px">y</span></div>
+                </div>
+                <div>
+                  <div class="inner-ports-label">OUTPUT</div>
+                  <div class="inner-port-row"><span class="type-badge">F64</span><span style="color:rgba(255,255,255,0.4);font-size:9px">CalcGain</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="ports-col outputs">
+            <div class="port-label">OUTPUT</div>
+            <div class="port-row">
+              <span class="var-name">CalcGain</span>
+              <span class="type-badge">F64</span>
+              <div class="handle"></div>
+            </div>
+          </div>
+        </div>
+        <div class="container-footer">
+          <div class="footer-section">
+            <div class="footer-label">Column axis</div>
+            <div class="radio-row dimmed"><div class="radio-dot"></div>x</div>
+            <div class="radio-row dimmed"><div class="radio-dot"></div>y</div>
+          </div>
+        </div>
+      </div>
+    `
+  },
+
+  'map-onearray': {
+    label: 'Map: x を Col化 → Column axis radio 有効、outputは F64のまま（Colが1本のみ）',
+    html: `
+      <div class="container-node">
+        <div class="container-header">
+          <div class="node-icon">⊞</div>
+          <span class="node-name">Map: CalcGain</span>
+        </div>
+        <div class="container-body">
+          <div class="ports-col inputs">
+            <div class="port-label">INPUT</div>
+            <div class="port-row">
+              <div class="handle"></div>
+              <button class="flip-btn active">to scalar</button>
+              <span class="type-badge">Col</span>
+              <span class="var-name">x</span>
+            </div>
+            <div class="port-row">
+              <div class="handle"></div>
+              <button class="flip-btn">to array</button>
+              <span class="type-badge">F64</span>
+              <span class="var-name">y</span>
+            </div>
+          </div>
+          <div class="container-slot">
+            <div class="inner-formula">
+              <div class="inner-formula-header">
+                <div class="inner-formula-icon">fx</div>
+                <span class="inner-formula-name">CalcGain</span>
+              </div>
+              <div class="inner-katex">= x · y</div>
+              <div class="inner-body">
+                <div>
+                  <div class="inner-ports-label">INPUT</div>
+                  <div class="inner-port-row"><span class="type-badge">F64</span><span style="color:rgba(255,255,255,0.4);font-size:9px">x</span></div>
+                  <div class="inner-port-row"><span class="type-badge">F64</span><span style="color:rgba(255,255,255,0.4);font-size:9px">y</span></div>
+                </div>
+                <div>
+                  <div class="inner-ports-label">OUTPUT</div>
+                  <div class="inner-port-row"><span class="type-badge">F64</span><span style="color:rgba(255,255,255,0.4);font-size:9px">CalcGain</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="ports-col outputs">
+            <div class="port-label">OUTPUT</div>
+            <div class="port-row">
+              <span class="var-name">CalcGain</span>
+              <span class="type-badge">nDMap</span>
+              <div class="handle"></div>
+            </div>
+          </div>
+        </div>
+        <div class="container-footer">
+          <div class="footer-section">
+            <div class="footer-label">Column axis</div>
+            <div class="radio-row"><div class="radio-dot checked"></div>x</div>
+          </div>
+        </div>
+      </div>
+    `
+  },
+
+  'map-twoarray': {
+    label: 'Map: x・y 両方 Col化 → Column axis radio に2選択肢',
+    html: `
+      <div class="container-node">
+        <div class="container-header">
+          <div class="node-icon">⊞</div>
+          <span class="node-name">Map: CalcGain</span>
+        </div>
+        <div class="container-body">
+          <div class="ports-col inputs">
+            <div class="port-label">INPUT</div>
+            <div class="port-row">
+              <div class="handle"></div>
+              <button class="flip-btn active">to scalar</button>
+              <span class="type-badge">Col</span>
+              <span class="var-name">x</span>
+            </div>
+            <div class="port-row">
+              <div class="handle"></div>
+              <button class="flip-btn active">to scalar</button>
+              <span class="type-badge">Col</span>
+              <span class="var-name">y</span>
+            </div>
+          </div>
+          <div class="container-slot">
+            <div class="inner-formula">
+              <div class="inner-formula-header">
+                <div class="inner-formula-icon">fx</div>
+                <span class="inner-formula-name">CalcGain</span>
+              </div>
+              <div class="inner-katex">= x · y</div>
+              <div class="inner-body">
+                <div>
+                  <div class="inner-ports-label">INPUT</div>
+                  <div class="inner-port-row"><span class="type-badge">F64</span><span style="color:rgba(255,255,255,0.4);font-size:9px">x</span></div>
+                  <div class="inner-port-row"><span class="type-badge">F64</span><span style="color:rgba(255,255,255,0.4);font-size:9px">y</span></div>
+                </div>
+                <div>
+                  <div class="inner-ports-label">OUTPUT</div>
+                  <div class="inner-port-row"><span class="type-badge">F64</span><span style="color:rgba(255,255,255,0.4);font-size:9px">CalcGain</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="ports-col outputs">
+            <div class="port-label">OUTPUT</div>
+            <div class="port-row">
+              <span class="var-name">CalcGain</span>
+              <span class="type-badge">nDMap</span>
+              <div class="handle"></div>
+            </div>
+          </div>
+        </div>
+        <div class="container-footer">
+          <div class="footer-section">
+            <div class="footer-label">Column axis</div>
+            <div class="radio-row"><div class="radio-dot checked"></div>x</div>
+            <div class="radio-row"><div class="radio-dot"></div>y</div>
+          </div>
+        </div>
+      </div>
+    `
+  },
+
+  'zip-occupied': {
+    label: 'Zip: occupied / y を Col化 → LengthMode表示',
+    html: `
+      <div class="container-node">
+        <div class="container-header">
+          <div class="node-icon">⊞</div>
+          <span class="node-name">Zip: CalcGain</span>
+        </div>
+        <div class="container-body">
+          <div class="ports-col inputs">
+            <div class="port-label">INPUT</div>
+            <div class="port-row">
+              <div class="handle"></div>
+              <button class="flip-btn">to array</button>
+              <span class="type-badge">F64</span>
+              <span class="var-name">x</span>
+            </div>
+            <div class="port-row">
+              <div class="handle"></div>
+              <button class="flip-btn active">to scalar</button>
+              <span class="type-badge">Col</span>
+              <span class="var-name">y</span>
+            </div>
+          </div>
+          <div class="container-slot">
+            <div class="inner-formula">
+              <div class="inner-formula-header">
+                <div class="inner-formula-icon">fx</div>
+                <span class="inner-formula-name">CalcGain</span>
+              </div>
+              <div class="inner-katex">= x · y</div>
+              <div class="inner-body">
+                <div>
+                  <div class="inner-ports-label">INPUT</div>
+                  <div class="inner-port-row"><span class="type-badge">F64</span><span style="color:rgba(255,255,255,0.4);font-size:9px">x</span></div>
+                  <div class="inner-port-row"><span class="type-badge">F64</span><span style="color:rgba(255,255,255,0.4);font-size:9px">y</span></div>
+                </div>
+                <div>
+                  <div class="inner-ports-label">OUTPUT</div>
+                  <div class="inner-port-row"><span class="type-badge">F64</span><span style="color:rgba(255,255,255,0.4);font-size:9px">CalcGain</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="ports-col outputs">
+            <div class="port-label">OUTPUT</div>
+            <div class="port-row">
+              <span class="var-name">CalcGain</span>
+              <span class="type-badge">Col</span>
+              <div class="handle"></div>
+            </div>
+          </div>
+        </div>
+        <div class="container-footer">
+          <div class="footer-section">
+            <div class="footer-label">Column axis</div>
+            <div class="radio-row"><div class="radio-dot checked"></div>y</div>
+          </div>
+          <div class="footer-section">
+            <div class="footer-label">Length mode</div>
+            <div class="radio-row"><div class="radio-dot checked"></div>min</div>
+            <div class="radio-row"><div class="radio-dot"></div>max</div>
+            <div class="radio-row"><div class="radio-dot"></div>zero_pad</div>
+            <div class="radio-row"><div class="radio-dot"></div>error</div>
+          </div>
+        </div>
+      </div>
+    `
+  }
+};
+
+function showScene(key) {
+  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+
+  const scene = SCENES[key];
+  const area = document.getElementById('canvas-area');
+  area.innerHTML = `
+    <div>
+      <div class="scene-label">${scene.label}</div>
+      ${scene.html}
+    </div>
+  `;
+}
+
+// 初期表示
+showScene('map-empty');
+document.querySelector('.scenario-btn').classList.add('active');
+</script>
+</body>
+</html>
