@@ -1,10 +1,10 @@
 ---
 scope: docs/spec/04-sidebar.md
 status: confirmed
-last_updated: 2026-04-12
+last_updated: 2026-04-15
 summary: >
   左端アイコンバーと各サイドパネルの仕様。パネルは4種（Componentツリー・検索・DB接続・Extensions）。
-  ツリーのエントリ状態表示・削除ルール・PACKAGESセクション・
+  ツリーのエントリ状態表示（Validation含む）・削除ルール・PACKAGESセクション・
   DB接続管理・Contribマーケットプレイスを定義する。
 key_decisions:
   - VSCodeアクティビティバー準拠（機能系上侧・設定系下側の2領域分割）
@@ -13,6 +13,9 @@ key_decisions:
   - ツリーのComponent削除は参照先があればブロック（参照先一覧を表示）
   - PACKAGESセクションは読み取り専用（インストール済contribsを表示）
   - DB接続ステータスは常時ポーリングなし（手動確認 or 処理のついでに更新）
+  - Validationエラー表示はVSCode準拠（✕/⚠ + ComponentName）
+  - error（✕）は永続的・構造的エラー、warning（⚠）は一時的・環境依存エラー
+  - 評価タイミング: タブ開放中→常時 / 変更発生→依存グラフを再帰的に非同期評価 / それ以外→DB保存済みフラグ
 depends_on:
   - docs/spec/01-layout.md   # アイコンバー・サイドパネルの共通仕様
 related_specs:
@@ -139,6 +142,27 @@ COMPONENT TREE  [+] [📁] [↺]    ← ヘッダーhover時に表示
 |---|---|
 | 未保存（draft） | エントリ右端に `●` |
 | 孤立Component（どこからも参照されていない） | 名前を灰色表示 |
+| Validationエラー | `✕ ComponentName`（赤） |
+| Validationワーニング | `⚠ ComponentName`（黄） |
+
+#### Validation状態管理
+
+**分類:**
+
+| Severity | 記号 | 対象 | 例 |
+|---|---|---|---|
+| error | ✕ | 永続的・構造的 | Formula引数変更によるエッジ無効・DBスキーマ変更による列参照切れ |
+| warning | ⚠ | 一時的・環境依存 | DB接続断 |
+
+**評価タイミング:**
+
+| 条件 | 動作 |
+|---|---|
+| タブで開いているComponent | 常時評価 |
+| 変更が発生したComponent | 依存グラフを再帰的に辿り、影響範囲を非同期評価（数loopごとにsleep挟み） |
+| それ以外 | DBに保存済みのvalidationフラグをそのまま表示 |
+
+> 非同期評価の詳細はPhase 5（バックエンド設計）で詰める。
 
 #### 操作
 - ダブルクリック: 該当Componentのページをタブで開く

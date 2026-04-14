@@ -70,7 +70,7 @@ D-08-3のpublishフローから「影響Flowツリー赤字表示」を意図的
 
 **影響doc:**
 - [x] docs/spec/08-dbtable-editor.md — state diagram追記・depends_on修正・last_updated更新
-- [ ] docs/spec/04-sidebar.md — Validation状態管理（表示・評価タイミング・分類）の仕様追記が必要
+- [x] docs/spec/04-sidebar.md — Validation状態管理（表示・評価タイミング・分類）の仕様追記済み
 
 ## [2026-04-12] 07-formula-inspect: ツリー構造をcompo列挙からarg-compo対応の2段構造に変更
 
@@ -123,7 +123,7 @@ Formulaエディタは機能が多く（引数・式・KaTeX・保存・Testパ�
 **影響doc:**
 - [x] docs/spec/02-flow-canvas.md — `## Componentノード 共通仕様` セクション削除、Front Matter更新
 - [x] docs/spec/03-component-nodes.md — ノード仕様統合・state diagram追加、Front Matter更新
-- [ ] docs/phase4/phase4-ui-design-master.md — `## 3. Componentカタログ` の関連ファイルコメントを要確認（実害はないが03が主体になった旨を明記してもよい）
+- [x] docs/phase4/phase4-ui-design-master.md — `## 3. Componentカタログ` の関連ファイルコメントを確認済み（spec/03-component-nodes.mdはすでに列挙されており追記不要と判断）
 
 ## [2026-04-11] デバッグパネルのSQL/IRタブを常時表示に変更（Show Debug廃止）
 
