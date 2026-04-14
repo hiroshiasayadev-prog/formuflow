@@ -230,6 +230,7 @@ Claudeは以下のケースで**自動的に**`BREAKING_CHANGES.md`にエント�
 | `docs/learn/lower.md` | confirmed | ❌ 未追加 |
 | `docs/learn/pipeline.md` | confirmed | ❌ 未追加 |
 | `docs/learn/ast.md` | confirmed | ❌ 未追加 |
+| `docs/phase5/phase5-design-master.md` | wip | ✅ 済み |
 
 Front Matter追加後は `❌ 未追加` → `✅ 済み` に更新する。
 
