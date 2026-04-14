@@ -392,8 +392,8 @@ body.delete-mode * {
   background: rgba(107,114,128,0.15) !important;
 }
 .type-warn {
-  color: #f97316 !important;
-  background: rgba(249,115,22,0.15) !important;
+  color: #eab308 !important;
+  background: rgba(234,179,8,0.15) !important;
 }
 .hover-error-mark {
   position: absolute;
@@ -665,7 +665,7 @@ function typeCompat(a, b) {
   if (numeric.includes(a) && numeric.includes(b)) return 'warn';
   return 'error';
 }
-const EDGE_COLOR = { ok: '#9ca3af', warn: '#f97316', error: '#ef4444' };
+const EDGE_COLOR = { ok: '#9ca3af', warn: '#eab308', error: '#ef4444' };
 
 // ── static edges (fromId, toId, fromType, toType) ──
 const STATIC_EDGES = [

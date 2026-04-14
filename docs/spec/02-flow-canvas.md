@@ -54,8 +54,10 @@ open_issues:
 ### 型バッジ（エッジ中点）
 
 - 型一致: `type-badge`と同じ緑スタイル、型名のみ表示（例: `Col`）
-- 型warn（int↔float numeric cast）: オレンジ `#f97316`、cast形式で表示（例: `F64→I32`）
+- 型warn（int↔float numeric cast）: 黄色 `#eab308`、cast形式で表示（例: `F64→I32`）
 - 型error: 赤 `#ef4444`、cast形式で表示、バッジを灰色化
+
+> warnカラーはerrorの赤との視覚的対比を明確にするため黄色に変更（`12-error-feedback.md`参照）。
 
 ### 型チェックルール（Phase 2時点のダミー）
 
