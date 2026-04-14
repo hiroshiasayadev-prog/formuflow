@@ -7,6 +7,45 @@
 
 <!-- エントリはここから下に追記していく -->
 
+## [2026-04-14] 12-error-feedback.md 新規作成・warnカラーをオレンジ→黄色に変更
+
+**変更内容:**
+Task 12のspec作業として `docs/spec/12-error-feedback.md` を新規作成。
+Flowキャンバス上のエラー・型不整合フィードバックUI仕様（ノード枠赤/黄枠・エッジ赤/黄・Severityカラー定義）を定める。
+
+あわせて、warnカラーを `#f97316`（オレンジ）から `#eab308`（黄）に変更。
+理由: errorの赤（`#ef4444`）との視覚的対比を大きくし、warning（許容範囲）とerror（接続不可）を一見で区別できるようにするため。
+
+10-debug-panel.mdのPROBLEMSタブインタラクションに、
+逆方向ナビゲーション（ノード枠クリック→PROBLEMSタブ該当行フォーカス）を追記。
+
+**影響doc:**
+- [x] docs/spec/12-error-feedback.md — 新規作成
+- [x] docs/spec/02-flow-canvas.md — 型バッジwarnカラー変更・参照先注記追加
+- [x] docs/spec/10-debug-panel.md — 双方向ナビゲーション追記
+- [x] docs/mockups/02-flow-canvas.html — warnカラー置換（`#f97316` → `#eab308`）
+- [x] docs/doc-policy.md — doc一覧に12を追加
+
+## [2026-04-13] 10-debug-panel.md 新規作成
+
+**変更内容:**
+Task 10のspec作業として `docs/spec/10-debug-panel.md` を新規作成。
+BREAKING_CHANGESの未反映項目「docs/spec/10-debug-panel.md — 未作成（将来作成時に本変更を前提とすること）」を解消。
+合わせてTask 10〜14のspec分割方針を決定した：
+- `10-debug-panel.md`: 下部デバッグパネルUI（PROBLEMS/SQL/IR）← 今回作成
+- `13-history-panel.md`: HISTORYパネルUI（右パネル・実行履歴カード・Export to test）
+- `14-debug-execution.md`: デバッグ実行モデル（inputソース・edge値キャプチャ・canvas吹き出し）
+
+主な決定事項:
+- SQL/IRはFlowタブアクティブ時のみ有効。canvas現在状態JSONをbackendに投げてcompile（実行不要・draft可）
+- タブ状態はfrontend localState管理（URLに乗せない）
+- EXPLAIN不要（将来機能）
+- IRはraw textベース（ツリーは将来機能）
+
+**影響doc:**
+- [x] docs/spec/10-debug-panel.md — 新規作成
+- [x] docs/doc-policy.md — doc一覧に追加
+
 ## [2026-04-12] 08-dbtable-editor: state diagram追記・依存参照修正・sidebar validation設計方針決定
 
 **変更内容:**

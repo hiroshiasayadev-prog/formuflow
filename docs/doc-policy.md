@@ -221,6 +221,9 @@ Claudeは以下のケースで**自動的に**`BREAKING_CHANGES.md`にエント�
 | `docs/spec/07-formula-inspect.md` | confirmed | ✅ 済み |
 | `docs/spec/08-dbtable-editor.md` | confirmed | ✅ 済み |
 | `docs/spec/09-default-input.md` | draft | ✅ 済み |
+| `docs/spec/10-debug-panel.md` | confirmed | ✅ 済み |
+| `docs/spec/11-map-zip-node.md` | confirmed | ✅ 済み |
+| `docs/spec/12-error-feedback.md` | confirmed | ✅ 済み |
 | `docs/learn/overview.md` | confirmed | ❌ 未追加 |
 | `docs/learn/expr.md` | confirmed | ❌ 未追加 |
 | `docs/learn/ir-nodes.md` | confirmed | ❌ 未追加 |
