@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>10c — Debug Panel: PROBLEMS（エラーなし）</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#111118; --bg2:#16161f; --bg3:#1c1c28; --bg4:#22222f;
+  --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14);
+  --text:#e2e2e8; --text2:#8888a0; --text3:#55556a;
+  --accent:#6366f1; --accent2:#a5b4fc;
+  --teal:#2dd4bf; --teal-bg:rgba(45,212,191,0.12);
+  --green:#4ade80; --green-bg:rgba(74,222,128,0.15);
+  --rose:#fb7185; --rose-bg:rgba(251,113,133,0.15);
+  --amber:#fcd34d; --amber-bg:rgba(252,211,77,0.12);
+}
+body { background:#0a0a12; font-family:'JetBrains Mono','Fira Code','Cascadia Code',monospace; font-size:12px; color:var(--text); padding:24px; display:flex; flex-direction:column; gap:16px; }
+.scene-label { font-size:10px; color:var(--text3); letter-spacing:0.1em; font-weight:600; text-transform:uppercase; }
+.scenario-row { display:flex; gap:8px; flex-wrap:wrap; }
+.scenario-btn { font-size:10px; font-family:inherit; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:4px; padding:4px 10px; cursor:pointer; }
+.scenario-btn:hover { color:var(--text); border-color:rgba(255,255,255,0.25); }
+.scenario-btn.active { color:var(--accent2); border-color:rgba(99,102,241,0.5); background:rgba(99,102,241,0.1); }
+
+.shell { background:var(--bg); border:1px solid var(--border2); border-radius:8px; overflow:hidden; display:flex; flex-direction:column; height:660px; }
+.menubar { height:30px; background:#0d0d14; border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 12px; flex-shrink:0; }
+.menubar-title { color:var(--accent); font-weight:700; font-size:11px; letter-spacing:0.1em; margin-right:16px; }
+.menubar-item { color:var(--text2); font-size:11px; padding:0 8px; height:30px; display:flex; align-items:center; }
+.body-row { display:flex; flex:1; min-height:0; }
+
+.iconbar { width:48px; background:#0e0e18; border-right:1px solid var(--border); display:flex; flex-direction:column; align-items:center; padding:8px 0; flex-shrink:0; }
+.icon-btn { width:40px; height:36px; display:flex; align-items:center; justify-content:center; border-radius:4px; color:var(--text3); font-size:13px; cursor:pointer; position:relative; }
+.icon-btn.active { color:var(--text); }
+.icon-btn.active::before { content:''; position:absolute; left:-8px; top:50%; transform:translateY(-50%); width:2px; height:18px; background:var(--accent); border-radius:0 1px 1px 0; }
+.icon-btn-bot { margin-top:auto; }
+
+.sidebar { width:220px; background:var(--bg2); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+.sidebar-hdr { height:30px; padding:0 10px; display:flex; align-items:center; color:var(--text3); font-size:10px; letter-spacing:0.1em; font-weight:600; border-bottom:1px solid var(--border); }
+.tree { padding:4px 0; flex:1; }
+.tree-item { height:24px; display:flex; align-items:center; padding:0 8px; gap:4px; color:var(--text2); font-size:11px; cursor:pointer; white-space:nowrap; }
+.tree-item:hover { background:rgba(255,255,255,0.05); }
+.tree-item.active { background:rgba(255,255,255,0.08); color:var(--text); }
+
+.main { flex:1; display:flex; flex-direction:column; min-width:0; }
+.tabbar { height:35px; background:#0e0e18; border-bottom:1px solid var(--border); display:flex; align-items:stretch; flex-shrink:0; }
+.tab { display:flex; align-items:center; gap:5px; padding:0 12px 0 10px; border-right:1px solid var(--border); color:var(--text2); font-size:11px; cursor:pointer; white-space:nowrap; position:relative; }
+.tab.active { background:var(--bg); color:var(--text); }
+.tab.active::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:var(--teal); }
+.tab-close { opacity:0; font-size:10px; color:var(--text2); margin-left:2px; }
+.tab:hover .tab-close { opacity:1; }
+
+.canvas-area { flex:1; position:relative; background:var(--bg2); overflow:hidden; }
+.canvas-grid { position:absolute; inset:0; background-image:radial-gradient(circle, var(--bg3) 1px, transparent 1px); background-size:24px 24px; }
+.node { position:absolute; background:var(--bg3); border:1px solid var(--border2); border-radius:6px; font-size:11px; color:var(--text); min-width:140px; }
+.node-hdr { padding:5px 9px; display:flex; align-items:center; gap:5px; border-bottom:1px solid var(--border); }
+.node-badge { font-size:8px; font-weight:700; padding:1px 5px; border-radius:3px; }
+.node-badge-teal { background:var(--teal-bg); color:var(--teal); }
+.node-badge-accent { background:rgba(99,102,241,0.15); color:var(--accent2); }
+.node-badge-rose { background:var(--rose-bg); color:var(--rose); }
+.node-badge-amber { background:var(--amber-bg); color:var(--amber); }
+.node-body { padding:6px 9px; display:flex; flex-direction:column; gap:3px; }
+.port-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.port { font-size:10px; color:var(--text2); display:flex; align-items:center; gap:4px; }
+.port-dot { width:7px; height:7px; border-radius:50%; background:var(--accent2); flex-shrink:0; }
+
+.edge { position:absolute; pointer-events:none; }
+.canvas-toolbar { position:absolute; bottom:12px; right:12px; }
+.debug-btn { background:var(--bg3); border:1px solid var(--border2); border-radius:5px; color:var(--text2); font-size:11px; font-family:inherit; padding:5px 12px; cursor:pointer; }
+.debug-btn:hover { color:var(--text); }
+
+.debug-panel { flex-shrink:0; display:flex; flex-direction:column; border-top:1px solid var(--border2); background:var(--bg); overflow:hidden; }
+.debug-resize-handle { height:4px; background:transparent; cursor:row-resize; flex-shrink:0; }
+.debug-resize-handle:hover { background:rgba(255,255,255,0.06); }
+.debug-tabbar { height:30px; background:#0d0d14; border-bottom:1px solid var(--border); display:flex; align-items:stretch; flex-shrink:0; }
+.debug-tab { display:flex; align-items:center; padding:0 14px; font-size:10px; color:var(--text2); cursor:pointer; border-right:1px solid var(--border); gap:5px; position:relative; white-space:nowrap; }
+.debug-tab:hover { color:var(--text); }
+.debug-tab.active { color:var(--text); background:var(--bg); }
+.debug-tab.active::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:var(--accent); }
+.debug-tab-close { margin-left:auto; padding:0 10px; font-size:12px; color:var(--text3); cursor:pointer; display:flex; align-items:center; height:100%; }
+.debug-tab-close:hover { color:var(--text); }
+.debug-content { flex:1; overflow-y:auto; display:flex; align-items:center; justify-content:center; }
+.debug-empty { color:var(--text3); font-size:11px; }
+
+.problem-row { display:flex; align-items:flex-start; gap:8px; padding:5px 14px; cursor:pointer; font-size:11px; line-height:1.5; }
+.problem-row:hover { background:rgba(255,255,255,0.04); }
+.problem-icon { flex-shrink:0; width:14px; font-size:12px; font-weight:700; margin-top:1px; }
+.problem-icon.warning { color:var(--amber); }
+.problem-msg { color:var(--text2); word-break:break-all; }
+.problem-msg em { color:var(--text); font-style:normal; }
+
+.statusbar { height:22px; background:var(--teal); display:flex; align-items:center; padding:0 10px; gap:12px; font-size:10px; color:rgba(0,0,0,0.75); flex-shrink:0; }
+.sb-right { margin-left:auto; display:flex; gap:12px; }
+</style>
+</head>
+<body>
+
+<div class="scene-label">10c — Debug Panel / PROBLEMS（エラーなし）</div>
+
+<div class="scenario-row">
+  <button class="scenario-btn active" onclick="setScene('s1',this)">S1: エラー0件・警告0件</button>
+  <button class="scenario-btn" onclick="setScene('s2',this)">S2: エラー0件・警告1件</button>
+</div>
+
+<div class="shell">
+  <div class="menubar">
+    <span class="menubar-title">formuflow</span>
+    <span class="menubar-item">File</span>
+    <span class="menubar-item">Edit</span>
+    <span class="menubar-item">View</span>
+    <span class="menubar-item">Run</span>
+    <span class="menubar-item">Help</span>
+  </div>
+
+  <div class="body-row">
+    <div class="iconbar">
+      <div class="icon-btn active">⊟</div>
+      <div class="icon-btn">⌕</div>
+      <div class="icon-btn" style="font-size:9px;font-weight:700;">DB</div>
+      <div class="icon-btn icon-btn-bot">⚙</div>
+    </div>
+
+    <div class="sidebar">
+      <div class="sidebar-hdr">COMPONENT TREE</div>
+      <div class="tree">
+        <div class="tree-item"><span style="width:8px"></span>▼<span style="margin-left:4px;">user</span></div>
+        <div class="tree-item"><span style="width:20px"></span>▼<span style="margin-left:4px;">flows</span></div>
+        <div class="tree-item active"><span style="width:32px"></span><span style="color:var(--teal);font-size:10px;">⇢</span><span style="margin-left:4px;">transistor-analysis</span></div>
+        <div class="tree-item"><span style="width:20px"></span>▼<span style="margin-left:4px;">formulas</span></div>
+        <div class="tree-item"><span style="width:32px"></span><span style="color:var(--accent2);font-size:10px;">fx</span><span style="margin-left:4px;">transistorGainCalc</span></div>
+        <div class="tree-item"><span style="width:20px"></span>▼<span style="margin-left:4px;">dbtables</span></div>
+        <div class="tree-item"><span style="width:32px"></span><span style="font-size:8px;font-weight:700;color:var(--rose);">DB</span><span style="margin-left:4px;">ivCurve</span></div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="tabbar">
+        <div class="tab active">
+          <span style="color:var(--teal);font-size:10px;">⇢</span>
+          <span>transistor-analysis</span>
+          <span class="tab-close">✕</span>
+        </div>
+      </div>
+
+      <div class="canvas-area">
+        <div class="canvas-grid"></div>
+
+        <div class="node" style="left:40px;top:60px;">
+          <div class="node-hdr">
+            <span class="node-badge node-badge-rose">DB</span>
+            <span>ivCurve</span>
+          </div>
+          <div class="node-body">
+            <div class="port-row">
+              <span class="port"><span class="port-dot" style="background:var(--rose);"></span>vgs</span>
+              <span style="font-size:9px;color:var(--text3);">Col(F64)</span>
+            </div>
+            <div class="port-row">
+              <span class="port"><span class="port-dot" style="background:var(--rose);"></span>vds</span>
+              <span style="font-size:9px;color:var(--text3);">Col(F64)</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="node" style="left:270px;top:60px;">
+          <div class="node-hdr">
+            <span class="node-badge node-badge-accent">fx</span>
+            <span>transistorGainCalc</span>
+          </div>
+          <div class="node-body">
+            <div class="port-row">
+              <span class="port"><span class="port-dot"></span>vgs</span>
+            </div>
+            <div class="port-row">
+              <span class="port"><span class="port-dot"></span>threshold</span>
+            </div>
+            <div style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px;">
+              <div class="port-row">
+                <span style="font-size:9px;color:var(--text3);">(vgs - threshold) × k</span>
+                <span class="port"><span class="port-dot"></span>out</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <svg class="edge" style="left:0;top:0;width:100%;height:100%;">
+          <defs>
+            <marker id="arrowC" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="rgba(136,136,160,0.6)"/>
+            </marker>
+          </defs>
+          <path d="M180,81 C230,81 230,88 270,88" stroke="rgba(136,136,160,0.5)" stroke-width="1.5" fill="none" marker-end="url(#arrowC)"/>
+        </svg>
+
+        <div class="canvas-toolbar">
+          <button class="debug-btn">Debug ▼</button>
+        </div>
+      </div>
+
+      <div class="debug-panel" id="debug-panel" style="height:200px;">
+        <div class="debug-resize-handle"></div>
+        <div class="debug-tabbar">
+          <div class="debug-tab active" id="prob-tab">PROBLEMS</div>
+          <div class="debug-tab">SQL</div>
+          <div class="debug-tab">IR</div>
+          <div class="debug-tab-close">✕</div>
+        </div>
+        <div class="debug-content" id="debug-content">
+          <span class="debug-empty">No problems detected.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span style="color:rgba(0,0,0,0.6);">formuflow</span>
+    <span style="color:rgba(0,0,0,0.4);">main</span>
+    <div class="sb-right">
+      <span>DuckDB</span>
+      <span>UTF-8</span>
+    </div>
+  </div>
+</div>
+
+<script>
+function setScene(id, btn) {
+  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const content = document.getElementById('debug-content');
+  const probTab = document.getElementById('prob-tab');
+  if (id === 's1') {
+    probTab.textContent = 'PROBLEMS';
+    content.innerHTML = '<span class="debug-empty">No problems detected.</span>';
+  } else {
+    probTab.innerHTML = 'PROBLEMS <span style="background:var(--amber-bg);color:var(--amber);font-size:9px;padding:1px 5px;border-radius:10px;font-weight:600;">1</span>';
+    content.innerHTML = `
+      <div style="width:100%;padding:0;">
+        <div class="problem-row" onclick="alert('→ キャンバス上の対象コンポーネントにフォーカス')">
+          <span class="problem-icon warning">⚠</span>
+          <span class="problem-msg">[<em>ivCurve</em>]: implicit cast F64 → I32 may lose precision</span>
+        </div>
+      </div>
+    `;
+  }
+}
+</script>
+</body>
+</html>

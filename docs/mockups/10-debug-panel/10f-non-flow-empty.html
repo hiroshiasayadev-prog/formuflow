@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>10f — Debug Panel: Flow以外（空状態）</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#111118; --bg2:#16161f; --bg3:#1c1c28; --bg4:#22222f;
+  --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14);
+  --text:#e2e2e8; --text2:#8888a0; --text3:#55556a;
+  --accent:#6366f1; --accent2:#a5b4fc;
+  --teal:#2dd4bf; --teal-bg:rgba(45,212,191,0.12);
+  --green:#4ade80; --green-bg:rgba(74,222,128,0.15);
+  --rose:#fb7185; --rose-bg:rgba(251,113,133,0.15);
+  --amber:#fcd34d; --amber-bg:rgba(252,211,77,0.12);
+}
+body { background:#0a0a12; font-family:'JetBrains Mono','Fira Code','Cascadia Code',monospace; font-size:12px; color:var(--text); padding:24px; display:flex; flex-direction:column; gap:16px; }
+.scene-label { font-size:10px; color:var(--text3); letter-spacing:0.1em; font-weight:600; text-transform:uppercase; }
+.scenario-row { display:flex; gap:8px; flex-wrap:wrap; }
+.scenario-btn { font-size:10px; font-family:inherit; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:4px; padding:4px 10px; cursor:pointer; }
+.scenario-btn:hover { color:var(--text); border-color:rgba(255,255,255,0.25); }
+.scenario-btn.active { color:var(--accent2); border-color:rgba(99,102,241,0.5); background:rgba(99,102,241,0.1); }
+
+.shell { background:var(--bg); border:1px solid var(--border2); border-radius:8px; overflow:hidden; display:flex; flex-direction:column; height:660px; }
+.menubar { height:30px; background:#0d0d14; border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 12px; flex-shrink:0; }
+.menubar-title { color:var(--accent); font-weight:700; font-size:11px; letter-spacing:0.1em; margin-right:16px; }
+.menubar-item { color:var(--text2); font-size:11px; padding:0 8px; height:30px; display:flex; align-items:center; }
+.body-row { display:flex; flex:1; min-height:0; }
+
+.iconbar { width:48px; background:#0e0e18; border-right:1px solid var(--border); display:flex; flex-direction:column; align-items:center; padding:8px 0; flex-shrink:0; }
+.icon-btn { width:40px; height:36px; display:flex; align-items:center; justify-content:center; border-radius:4px; color:var(--text3); font-size:13px; cursor:pointer; position:relative; }
+.icon-btn.active { color:var(--text); }
+.icon-btn.active::before { content:''; position:absolute; left:-8px; top:50%; transform:translateY(-50%); width:2px; height:18px; background:var(--accent); border-radius:0 1px 1px 0; }
+.icon-btn-bot { margin-top:auto; }
+
+.sidebar { width:220px; background:var(--bg2); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+.sidebar-hdr { height:30px; padding:0 10px; display:flex; align-items:center; color:var(--text3); font-size:10px; letter-spacing:0.1em; font-weight:600; border-bottom:1px solid var(--border); }
+.tree { padding:4px 0; flex:1; }
+.tree-item { height:24px; display:flex; align-items:center; padding:0 8px; gap:4px; color:var(--text2); font-size:11px; cursor:pointer; white-space:nowrap; }
+.tree-item:hover { background:rgba(255,255,255,0.05); }
+.tree-item.active { background:rgba(255,255,255,0.08); color:var(--text); }
+
+.main { flex:1; display:flex; flex-direction:column; min-width:0; }
+.tabbar { height:35px; background:#0e0e18; border-bottom:1px solid var(--border); display:flex; align-items:stretch; flex-shrink:0; }
+.tab { display:flex; align-items:center; gap:5px; padding:0 12px 0 10px; border-right:1px solid var(--border); color:var(--text2); font-size:11px; cursor:pointer; white-space:nowrap; position:relative; }
+.tab.active { background:var(--bg); color:var(--text); }
+.tab.active::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; }
+.tab-close { opacity:0; font-size:10px; color:var(--text2); margin-left:2px; }
+.tab:hover .tab-close { opacity:1; }
+
+.page { flex:1; display:flex; flex-direction:column; min-height:0; overflow-y:auto; }
+
+/* formula page */
+.page-header { padding:16px 20px 12px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.page-header-row { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.page-icon { width:28px; height:28px; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; flex-shrink:0; }
+.page-title { font-size:15px; font-weight:600; color:var(--text); }
+.page-path { margin-left:auto; font-size:10px; color:var(--text3); }
+.page-body { padding:20px; flex:1; }
+.field-label { font-size:10px; color:var(--text3); letter-spacing:0.1em; font-weight:600; margin-bottom:8px; }
+.text-input { background:var(--bg3); border:1px solid var(--border2); border-radius:4px; padding:6px 10px; font-family:inherit; font-size:12px; color:var(--text); outline:none; width:100%; max-width:360px; }
+.expr-area { background:var(--bg3); border:1px solid var(--border2); border-radius:4px; padding:8px 12px; font-family:inherit; font-size:12px; color:var(--accent2); width:100%; max-width:480px; height:48px; outline:none; resize:none; }
+
+/* debug panel */
+.debug-panel { flex-shrink:0; display:flex; flex-direction:column; border-top:1px solid var(--border2); background:var(--bg); overflow:hidden; }
+.debug-resize-handle { height:4px; background:transparent; cursor:row-resize; flex-shrink:0; }
+.debug-resize-handle:hover { background:rgba(255,255,255,0.06); }
+.debug-tabbar { height:30px; background:#0d0d14; border-bottom:1px solid var(--border); display:flex; align-items:stretch; flex-shrink:0; }
+.debug-tab { display:flex; align-items:center; padding:0 14px; font-size:10px; color:var(--text2); cursor:pointer; border-right:1px solid var(--border); gap:5px; position:relative; white-space:nowrap; }
+.debug-tab:hover { color:var(--text); }
+.debug-tab.active { color:var(--text); background:var(--bg); }
+.debug-tab.active::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:var(--accent); }
+.debug-tab-close { margin-left:auto; padding:0 10px; font-size:12px; color:var(--text3); cursor:pointer; display:flex; align-items:center; height:100%; }
+.debug-tab-close:hover { color:var(--text); }
+.debug-content { flex:1; overflow-y:auto; display:flex; align-items:center; justify-content:center; }
+.debug-empty { color:var(--text3); font-size:11px; }
+
+.statusbar { height:22px; background:var(--accent); display:flex; align-items:center; padding:0 10px; gap:12px; font-size:10px; color:rgba(255,255,255,0.85); flex-shrink:0; }
+.sb-right { margin-left:auto; display:flex; gap:12px; }
+</style>
+</head>
+<body>
+
+<div class="scene-label">10f — Debug Panel / Flow以外（空状態）</div>
+
+<div class="scenario-row">
+  <button class="scenario-btn active" onclick="setScene('formula',this)">S1: Formulaページを開いている</button>
+  <button class="scenario-btn" onclick="setScene('dbtable',this)">S2: DBTableページを開いている</button>
+</div>
+
+<div class="shell">
+  <div class="menubar">
+    <span class="menubar-title">formuflow</span>
+    <span class="menubar-item">File</span>
+    <span class="menubar-item">Edit</span>
+    <span class="menubar-item">View</span>
+    <span class="menubar-item">Run</span>
+    <span class="menubar-item">Help</span>
+  </div>
+
+  <div class="body-row">
+    <div class="iconbar">
+      <div class="icon-btn active">⊟</div>
+      <div class="icon-btn">⌕</div>
+      <div class="icon-btn" style="font-size:9px;font-weight:700;">DB</div>
+      <div class="icon-btn icon-btn-bot">⚙</div>
+    </div>
+
+    <div class="sidebar">
+      <div class="sidebar-hdr">COMPONENT TREE</div>
+      <div class="tree">
+        <div class="tree-item"><span style="width:8px"></span>▼<span style="margin-left:4px;">user</span></div>
+        <div class="tree-item"><span style="width:20px"></span>▼<span style="margin-left:4px;">flows</span></div>
+        <div class="tree-item"><span style="width:32px"></span><span style="color:var(--teal);font-size:10px;">⇢</span><span style="margin-left:4px;">transistor-analysis</span></div>
+        <div class="tree-item"><span style="width:20px"></span>▼<span style="margin-left:4px;">formulas</span></div>
+        <div class="tree-item active" id="tree-active"><span style="width:32px"></span><span style="color:var(--accent2);font-size:10px;">fx</span><span style="margin-left:4px;">transistorGainCalc</span></div>
+        <div class="tree-item"><span style="width:20px"></span>▼<span style="margin-left:4px;">dbtables</span></div>
+        <div class="tree-item" id="tree-dbtable"><span style="width:32px"></span><span style="font-size:8px;font-weight:700;color:var(--rose);">DB</span><span style="margin-left:4px;">ivCurve</span></div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="tabbar" id="tabbar">
+        <div class="tab active" style="--tab-color:var(--accent2);">
+          <span style="color:var(--accent2);font-size:10px;">fx</span>
+          <span id="tab-label">transistorGainCalc</span>
+          <span class="tab-close">✕</span>
+        </div>
+      </div>
+
+      <div class="page" id="page-content">
+        <!-- Formula page -->
+        <div class="page-header">
+          <div class="page-header-row">
+            <div class="page-icon" style="background:rgba(99,102,241,0.15);color:var(--accent2);">fx</div>
+            <span class="page-title" id="page-title">transistorGainCalc</span>
+            <span class="page-path" id="page-path">/formulas/transistorGainCalc</span>
+          </div>
+        </div>
+        <div class="page-body" id="page-body">
+          <div style="margin-bottom:18px;">
+            <div class="field-label">TITLE</div>
+            <input class="text-input" type="text" value="transistorGainCalc">
+          </div>
+          <div>
+            <div class="field-label">EXPRESSION</div>
+            <textarea class="expr-area">(vgs - threshold) * gain_factor</textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="debug-panel" style="height:200px;">
+        <div class="debug-resize-handle"></div>
+        <div class="debug-tabbar">
+          <div class="debug-tab active" id="dtab-problems" onclick="switchDebugTab('problems')">PROBLEMS</div>
+          <div class="debug-tab" id="dtab-sql" onclick="switchDebugTab('sql')">SQL</div>
+          <div class="debug-tab" id="dtab-ir" onclick="switchDebugTab('ir')">IR</div>
+          <div class="debug-tab-close">✕</div>
+        </div>
+        <div class="debug-content" id="debug-content">
+          <span class="debug-empty">No problems detected.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="statusbar" id="statusbar">
+    <span style="color:rgba(255,255,255,0.6);">formuflow</span>
+    <span style="color:rgba(255,255,255,0.4);">main</span>
+    <div class="sb-right"><span>DuckDB</span><span>UTF-8</span></div>
+  </div>
+</div>
+
+<script>
+let currentPage = 'formula';
+let currentDebugTab = 'problems';
+
+const PAGES = {
+  formula: {
+    tabLabel: 'transistorGainCalc',
+    tabColor: 'var(--accent2)',
+    tabPrefix: '<span style="color:var(--accent2);font-size:10px;">fx</span>',
+    pageTitle: 'transistorGainCalc',
+    pagePath: '/formulas/transistorGainCalc',
+    pageIcon: '<div class="page-icon" style="background:rgba(99,102,241,0.15);color:var(--accent2);">fx</div>',
+    pageBody: `
+      <div style="margin-bottom:18px;">
+        <div class="field-label">TITLE</div>
+        <input class="text-input" type="text" value="transistorGainCalc">
+      </div>
+      <div>
+        <div class="field-label">EXPRESSION</div>
+        <textarea class="expr-area">(vgs - threshold) * gain_factor</textarea>
+      </div>
+    `,
+    statusBg: 'var(--accent)',
+    statusColor: 'rgba(255,255,255,0.85)',
+  },
+  dbtable: {
+    tabLabel: 'ivCurve',
+    tabColor: 'var(--rose)',
+    tabPrefix: '<span style="color:var(--rose);font-size:9px;font-weight:700;">DB</span>',
+    pageTitle: 'ivCurve',
+    pagePath: '/dbtables/ivCurve',
+    pageIcon: '<div class="page-icon" style="background:var(--rose-bg);color:var(--rose);">DB</div>',
+    pageBody: `
+      <div style="margin-bottom:18px;">
+        <div class="field-label">TITLE</div>
+        <input class="text-input" type="text" value="ivCurve">
+      </div>
+      <div>
+        <div class="field-label">TABLE</div>
+        <input class="text-input" type="text" value="transistor_iv_table" style="color:var(--rose);">
+      </div>
+    `,
+    statusBg: 'var(--rose)',
+    statusColor: 'rgba(255,255,255,0.85)',
+  },
+};
+
+const DEBUG_CONTENT = {
+  problems: () => `<span class="debug-empty">No problems detected.</span>`,
+  sql: () => `<span class="debug-empty">Flow を開くと SQL が表示されます</span>`,
+  ir: () => `<span class="debug-empty">Flow を開くと IR が表示されます</span>`,
+};
+
+function switchDebugTab(tab) {
+  currentDebugTab = tab;
+  ['problems','sql','ir'].forEach(t => {
+    document.getElementById('dtab-' + t).classList.toggle('active', t === tab);
+  });
+  document.getElementById('debug-content').innerHTML = DEBUG_CONTENT[tab]();
+}
+
+function setScene(page, btn) {
+  currentPage = page;
+  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  const p = PAGES[page];
+  document.getElementById('tab-label').textContent = p.tabLabel;
+  document.querySelector('#tabbar .tab').style.setProperty('--tab-color', p.tabColor);
+  document.querySelector('#tabbar .tab').querySelector('span').outerHTML;
+  document.querySelector('#tabbar .tab').innerHTML = `
+    ${p.tabPrefix}
+    <span>${p.tabLabel}</span>
+    <span class="tab-close">✕</span>
+  `;
+  document.querySelector('#tabbar .tab.active').style.setProperty('--tab-color', p.tabColor);
+  document.querySelector('#tabbar .tab').classList.add('active');
+  document.getElementById('page-title').textContent = p.pageTitle;
+  document.getElementById('page-path').textContent = p.pagePath;
+  document.getElementById('page-body').innerHTML = p.pageBody;
+  document.querySelector('.page-header-row .page-icon').outerHTML;
+  document.querySelector('.page-header-row').innerHTML = `
+    ${p.pageIcon}
+    <span class="page-title" id="page-title">${p.pageTitle}</span>
+    <span class="page-path" id="page-path">${p.pagePath}</span>
+  `;
+
+  const tabEl = document.querySelector('#tabbar .tab.active');
+  tabEl.querySelector('span:nth-child(1)').innerHTML = '';
+
+  document.getElementById('statusbar').style.background = p.statusBg;
+
+  document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('active'));
+  if (page === 'formula') {
+    document.querySelectorAll('.tree-item')[4].classList.add('active');
+  } else {
+    document.querySelectorAll('.tree-item')[6].classList.add('active');
+  }
+
+  switchDebugTab(currentDebugTab);
+}
+
+function setScene2(page, btn) {
+  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentPage = page;
+  const p = PAGES[page];
+
+  const tabDiv = document.querySelector('#tabbar .tab');
+  tabDiv.innerHTML = `${p.tabPrefix}<span>${p.tabLabel}</span><span class="tab-close">✕</span>`;
+
+  const hdrRow = document.querySelector('.page-header-row');
+  hdrRow.innerHTML = `${p.pageIcon}<span class="page-title">${p.pageTitle}</span><span class="page-path">${p.pagePath}</span>`;
+
+  document.getElementById('page-body').innerHTML = p.pageBody;
+  document.getElementById('statusbar').style.background = p.statusBg;
+
+  document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('active'));
+  if (page === 'formula') {
+    document.querySelectorAll('.tree-item')[4].classList.add('active');
+  } else {
+    document.querySelectorAll('.tree-item')[6].classList.add('active');
+  }
+
+  switchDebugTab(currentDebugTab);
+}
+
+document.querySelectorAll('.scenario-btn').forEach((btn, i) => {
+  const pages = ['formula', 'dbtable'];
+  btn.addEventListener('click', function() { setScene2(pages[i], this); });
+});
+</script>
+</body>
+</html>

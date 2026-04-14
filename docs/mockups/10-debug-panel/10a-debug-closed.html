@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>10a — Debug Panel: 閉じた状態</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#111118; --bg2:#16161f; --bg3:#1c1c28; --bg4:#22222f;
+  --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14);
+  --text:#e2e2e8; --text2:#8888a0; --text3:#55556a;
+  --accent:#6366f1; --accent2:#a5b4fc;
+  --teal:#2dd4bf; --teal-bg:rgba(45,212,191,0.12);
+  --green:#4ade80; --green-bg:rgba(74,222,128,0.15);
+  --rose:#fb7185; --rose-bg:rgba(251,113,133,0.15);
+  --amber:#fcd34d; --amber-bg:rgba(252,211,77,0.12);
+}
+body { background:#0a0a12; font-family:'JetBrains Mono','Fira Code','Cascadia Code',monospace; font-size:12px; color:var(--text); padding:24px; display:flex; flex-direction:column; gap:16px; }
+.scene-label { font-size:10px; color:var(--text3); letter-spacing:0.1em; font-weight:600; text-transform:uppercase; }
+.scenario-row { display:flex; gap:8px; flex-wrap:wrap; }
+.scenario-btn { font-size:10px; font-family:inherit; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:4px; padding:4px 10px; cursor:pointer; }
+.scenario-btn:hover { color:var(--text); border-color:rgba(255,255,255,0.25); }
+.scenario-btn.active { color:var(--accent2); border-color:rgba(99,102,241,0.5); background:rgba(99,102,241,0.1); }
+
+.shell { background:var(--bg); border:1px solid var(--border2); border-radius:8px; overflow:hidden; display:flex; flex-direction:column; height:660px; }
+.menubar { height:30px; background:#0d0d14; border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 12px; flex-shrink:0; }
+.menubar-title { color:var(--accent); font-weight:700; font-size:11px; letter-spacing:0.1em; margin-right:16px; }
+.menubar-item { color:var(--text2); font-size:11px; padding:0 8px; height:30px; display:flex; align-items:center; }
+.body-row { display:flex; flex:1; min-height:0; }
+
+.iconbar { width:48px; background:#0e0e18; border-right:1px solid var(--border); display:flex; flex-direction:column; align-items:center; padding:8px 0; flex-shrink:0; }
+.icon-btn { width:40px; height:36px; display:flex; align-items:center; justify-content:center; border-radius:4px; color:var(--text3); font-size:13px; cursor:pointer; position:relative; }
+.icon-btn:hover { color:var(--text2); }
+.icon-btn.active { color:var(--text); }
+.icon-btn.active::before { content:''; position:absolute; left:-8px; top:50%; transform:translateY(-50%); width:2px; height:18px; background:var(--accent); border-radius:0 1px 1px 0; }
+.icon-btn-bot { margin-top:auto; }
+
+.sidebar { width:220px; background:var(--bg2); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+.sidebar-hdr { height:30px; padding:0 10px; display:flex; align-items:center; color:var(--text3); font-size:10px; letter-spacing:0.1em; font-weight:600; border-bottom:1px solid var(--border); }
+.tree { padding:4px 0; overflow-y:auto; flex:1; }
+.tree-item { height:24px; display:flex; align-items:center; padding:0 8px; gap:4px; color:var(--text2); font-size:11px; cursor:pointer; white-space:nowrap; }
+.tree-item:hover { background:rgba(255,255,255,0.05); color:var(--text); }
+.tree-item.active { background:rgba(255,255,255,0.08); color:var(--text); }
+
+.main { flex:1; display:flex; flex-direction:column; min-width:0; }
+.tabbar { height:35px; background:#0e0e18; border-bottom:1px solid var(--border); display:flex; align-items:stretch; flex-shrink:0; }
+.tab { display:flex; align-items:center; gap:5px; padding:0 12px 0 10px; border-right:1px solid var(--border); color:var(--text2); font-size:11px; cursor:pointer; white-space:nowrap; position:relative; }
+.tab.active { background:var(--bg); color:var(--text); }
+.tab.active::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:var(--teal); }
+.tab-close { opacity:0; font-size:10px; color:var(--text2); margin-left:2px; }
+.tab:hover .tab-close { opacity:1; }
+
+.canvas-area { flex:1; position:relative; background:var(--bg2); overflow:hidden; }
+.canvas-grid { position:absolute; inset:0; background-image:radial-gradient(circle, var(--bg3) 1px, transparent 1px); background-size:24px 24px; }
+
+.node { position:absolute; background:var(--bg3); border:1px solid var(--border2); border-radius:6px; font-size:11px; color:var(--text); min-width:140px; }
+.node-hdr { padding:5px 9px; display:flex; align-items:center; gap:5px; border-bottom:1px solid var(--border); }
+.node-badge { font-size:8px; font-weight:700; padding:1px 5px; border-radius:3px; }
+.node-badge-teal { background:var(--teal-bg); color:var(--teal); }
+.node-badge-accent { background:rgba(99,102,241,0.15); color:var(--accent2); }
+.node-badge-rose { background:var(--rose-bg); color:var(--rose); }
+.node-badge-amber { background:var(--amber-bg); color:var(--amber); }
+.node-body { padding:6px 9px; display:flex; flex-direction:column; gap:3px; }
+.port-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.port { font-size:10px; color:var(--text2); display:flex; align-items:center; gap:4px; }
+.port-dot { width:7px; height:7px; border-radius:50%; background:var(--accent2); flex-shrink:0; }
+.port-dot-teal { background:var(--teal); }
+.port-dot-rose { background:var(--rose); }
+
+.edge { position:absolute; pointer-events:none; }
+
+.canvas-toolbar { position:absolute; bottom:12px; right:12px; display:flex; gap:6px; }
+.debug-btn { background:var(--bg3); border:1px solid var(--border2); border-radius:5px; color:var(--text2); font-size:11px; font-family:inherit; padding:5px 12px; cursor:pointer; display:flex; align-items:center; gap:5px; }
+.debug-btn:hover { color:var(--text); border-color:rgba(255,255,255,0.25); }
+
+.statusbar { height:22px; background:var(--teal); display:flex; align-items:center; padding:0 10px; gap:12px; font-size:10px; color:rgba(0,0,0,0.75); flex-shrink:0; }
+.sb-right { margin-left:auto; display:flex; gap:12px; }
+</style>
+</head>
+<body>
+
+<div class="scene-label">10a — Debug Panel / 閉じた状態</div>
+
+<div class="scenario-row">
+  <button class="scenario-btn active">通常（Flowを開いている・エラーなし・パネル閉じ）</button>
+</div>
+
+<div class="shell">
+  <div class="menubar">
+    <span class="menubar-title">formuflow</span>
+    <span class="menubar-item">File</span>
+    <span class="menubar-item">Edit</span>
+    <span class="menubar-item">View</span>
+    <span class="menubar-item">Run</span>
+    <span class="menubar-item">Help</span>
+  </div>
+
+  <div class="body-row">
+    <div class="iconbar">
+      <div class="icon-btn active">⊟</div>
+      <div class="icon-btn">⌕</div>
+      <div class="icon-btn" style="font-size:9px;font-weight:700;">DB</div>
+      <div class="icon-btn icon-btn-bot">⚙</div>
+    </div>
+
+    <div class="sidebar">
+      <div class="sidebar-hdr">COMPONENT TREE</div>
+      <div class="tree">
+        <div class="tree-item"><span style="width:8px"></span>▼<span style="margin-left:4px;">user</span></div>
+        <div class="tree-item"><span style="width:20px"></span>▼<span style="margin-left:4px;">flows</span></div>
+        <div class="tree-item active"><span style="width:32px"></span><span style="color:var(--teal);font-size:10px;">⇢</span><span style="margin-left:4px;">transistor-analysis</span></div>
+        <div class="tree-item"><span style="width:20px"></span>▼<span style="margin-left:4px;">formulas</span></div>
+        <div class="tree-item"><span style="width:32px"></span><span style="color:var(--accent2);font-size:10px;">fx</span><span style="margin-left:4px;">transistorGainCalc</span></div>
+        <div class="tree-item"><span style="width:20px"></span>▼<span style="margin-left:4px;">dbtables</span></div>
+        <div class="tree-item"><span style="width:32px"></span><span style="font-size:8px;font-weight:700;color:var(--rose);">DB</span><span style="margin-left:4px;">ivCurve</span></div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="tabbar">
+        <div class="tab active">
+          <span style="color:var(--teal);font-size:10px;">⇢</span>
+          <span>transistor-analysis</span>
+          <span class="tab-close">✕</span>
+        </div>
+      </div>
+
+      <div class="canvas-area">
+        <div class="canvas-grid"></div>
+
+        <!-- ivCurve DBTable node -->
+        <div class="node" style="left:60px;top:80px;">
+          <div class="node-hdr">
+            <span class="node-badge node-badge-rose">DB</span>
+            <span>ivCurve</span>
+          </div>
+          <div class="node-body">
+            <div class="port-row">
+              <span class="port"><span class="port-dot port-dot-rose"></span>vgs</span>
+              <span style="font-size:9px;color:var(--text3);">Col(F64)</span>
+            </div>
+            <div class="port-row">
+              <span class="port"><span class="port-dot port-dot-rose"></span>vds</span>
+              <span style="font-size:9px;color:var(--text3);">Col(F64)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- const Vth node -->
+        <div class="node" style="left:60px;top:230px;">
+          <div class="node-hdr">
+            <span class="node-badge node-badge-amber">C</span>
+            <span>const:vth</span>
+          </div>
+          <div class="node-body">
+            <div class="port-row">
+              <span class="port"><span class="port-dot" style="background:var(--amber);"></span>value</span>
+              <span style="font-size:9px;color:var(--text3);">2.0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- transistorGainCalc Formula node -->
+        <div class="node" style="left:290px;top:110px;">
+          <div class="node-hdr">
+            <span class="node-badge node-badge-accent">fx</span>
+            <span>transistorGainCalc</span>
+          </div>
+          <div class="node-body">
+            <div class="port-row">
+              <span class="port"><span class="port-dot"></span>vgs</span>
+            </div>
+            <div class="port-row">
+              <span class="port"><span class="port-dot"></span>threshold</span>
+            </div>
+            <div style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px;">
+              <div class="port-row">
+                <span style="font-size:9px;color:var(--text3);">(vgs - threshold) × k</span>
+                <span class="port"><span class="port-dot"></span>out</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SVG edges -->
+        <svg class="edge" style="left:0;top:0;width:100%;height:100%;">
+          <defs>
+            <marker id="arrowA" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="rgba(136,136,160,0.6)"/>
+            </marker>
+          </defs>
+          <!-- ivCurve:vgs → transistorGainCalc:vgs -->
+          <path d="M200,101 C250,101 250,138 290,138" stroke="rgba(136,136,160,0.5)" stroke-width="1.5" fill="none" marker-end="url(#arrowA)"/>
+          <!-- const:vth → transistorGainCalc:threshold -->
+          <path d="M200,248 C250,248 250,158 290,158" stroke="rgba(136,136,160,0.5)" stroke-width="1.5" fill="none" marker-end="url(#arrowA)"/>
+        </svg>
+
+        <div class="canvas-toolbar">
+          <button class="debug-btn" onclick="alert('→ 10b でパネル開状態を確認')">Debug ▲</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span style="color:rgba(0,0,0,0.6);">formuflow</span>
+    <span style="color:rgba(0,0,0,0.4);">main</span>
+    <div class="sb-right">
+      <span>DuckDB</span>
+      <span>UTF-8</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
