@@ -100,7 +100,7 @@ TextEmbedding.add_custom_model(
 )
 ```
 
-> ※ HuggingFace上のONNXファイル存在確認が必要（open issue）
+> ※ HuggingFace上のONNXファイル存在確認済
 
 **ベクトルDB: Qdrant in-process**
 - `QdrantClient(path="./qdrant_db")` でディスク永続化
